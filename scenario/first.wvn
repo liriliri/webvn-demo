@@ -1,0 +1,7 @@
+// 显示背景和人物
+bg -d -src=living_room
+fg -d -src=wendy_normal -pos=bottomCenter
+
+// 简单介绍
+dialog -d -n=Wendy -t=你好！我是温蒂（Wendy），该视觉小说引擎的拟人化萌娘代言人。
+dialog -t=该说些什么呢？

@@ -1,0 +1,10 @@
+// Initialization script
+
+menu -d                            \
+    -bgm=/asset/bgm/bgm1.ogg       \
+    -du=300                        \
+    -fi=true                       \
+    -fo=true                       \
+    -bhs=/asset/sound/onmouse.wav  \
+    -bcs=/asset/sound/onclick.wav  \
+    -btn='{"start":"开始旅程","load":false}'
