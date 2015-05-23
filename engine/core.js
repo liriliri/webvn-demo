@@ -4,10 +4,8 @@
  * and notice that only under debug mode, the info is displayed
  * @namespace webvn.log
  */
-webvn.module('log', ['config', 'util'], function (config, util) {
+webvn.module('log', function (config, util, exports) {
     "use strict";
-    var exports = {};
-
     var conf = config.log;
     var colors = conf.colors;
 
@@ -92,41 +90,12 @@ webvn.module('log', ['config', 'util'], function (config, util) {
 
         return stacks.join('\n');
     }
-
-    return exports;
 });
-/**
- * This module provide the basic class inheritance.
- * @namespace webvn.class
- */
-webvn.module('class', ['util'], function (util) {
-    var exports = {};
+webvn.module('Class', function (util, exports) {
     var ObjCreate = Object.create;
 
-    /**
-     * Create a New Class
-     * @function webvn.class.create
-     * @param {object} px prototype methods or attributes
-     * @param {object=} sx static methods or attributes
-     */
-    exports.create = function (px, sx) {
-        return Base.extend(px, sx);
-    };
-
-    /**
-     * @function webvn.class.module
-     */
-    exports.module = function (requires, fn) {
-        "use strict";
-        var exports = {};
-        if (util.isFunction(requires) && fn === undefined) {
-            fn = requires;
-            requires = [];
-        }
-        webvn.use(requires, function() {
-            exports = fn.call(null, arguments);
-        });
-        return exports;
+    exports.create = function (px, attrs, sx) {
+        return Base.extend(px, attrs, sx);
     };
 
     /* Create a new class using px's constructor if exists.
@@ -136,6 +105,7 @@ webvn.module('class', ['util'], function (util) {
         var _class;
         px = px || {};
         sx = sx || {};
+
         // Whether a constructor is defined
         if (px.hasOwnProperty('constructor')) {
             _class = px.constructor;
@@ -143,22 +113,26 @@ webvn.module('class', ['util'], function (util) {
             _class = function () {};
             px.constructor = _class;
         }
-        // Atach __name__ and __owner__ to each prototype method
-        util.each(px, function (obj, key) {
-            if (util.isFunction(obj)) {
-                obj.__name__ = key;
-                obj.__owner__ = _class;
+
+        // Atach __name__ and __owner__ to each prototype method, used for callSuper
+        util.each(px, function (val, key) {
+            if (util.isFunction(val)) {
+                val.__name__ = key;
+                val.__owner__ = _class;
             }
         });
+
         // Set statics
         util.each(sx, function (value, p) {
             _class[p] = value;
         });
-        // Extend function
-        _class.extend = function (px, sx) {
-            return extend.apply(null, [_class, px, sx]);
+
+        _class.extend = function (px, attrs, sx) {
+            return extend.apply(null, [_class, px, attrs, sx]);
         };
+
         _class.prototype = px;
+
         return _class;
     }
 
@@ -181,57 +155,98 @@ webvn.module('class', ['util'], function (util) {
     /* Extend a class that already exist.
      * All it does is just to set the superClass's prototype into px's __proto__.
      */
-    function extend(superClass, px, sx) {
+    function extend(superClass, px, attrs, sx) {
         var _class = create(px, sx),
             newPx = createObj(superClass.prototype, _class);
+
+
         var keys = util.keys(px), key;
         for (var i = 0, len = keys.length; i < len; i++) {
             key = keys[i];
             newPx[key] = px[key];
         }
-        _class.prototype = newPx;
+
         _class.superclass = superClass.prototype;
+
+        _class.extendFn = function (obj) {
+            util.mix(newPx, obj);
+        };
+
+        // Define getter and setter
+        attrs = attrs || {};
+        util.each(attrs, function (val, key) {
+            if (!val.get) {
+                val.get = function () {
+                    return this['_' + key];
+                }
+            }
+            if (!val.set) {
+                val.set = function (val) {
+                    this['_' + key] = val;
+                }
+            }
+        });
+        Object.defineProperties(newPx, attrs);
+
+        // fn: Short name for prototype
+        _class.fn = newPx;
+        _class.prototype = newPx;
+
         return _class;
     }
 
-    /**
-     * A Basic Class Inherited by All Classes
-     * @class webvn.class.Base
-     */
     var Base = exports.Base = create({
+
         constructor: function Base () {},
-        /**
-         * Call Parent Function <br>
-         * It will get the current method which is calling it,
-         * then get the constructor, then the superclass prototype.
-         * Finally execute function with the same name in superclass's prototype
-         * @method webvn.class.Base#callSuper
-         */
+
         callSuper: function () {
             var method, obj,
                 self = this,
                 args = arguments;
+
             method = arguments.callee.caller;
             obj = self;
+
             var name = method.__name__;
             if (!name) {
                 return undefined;
             }
+
             var member = method.__owner__.superclass[name];
             if (!member) {
                 return undefined;
             }
+
             return member.apply(obj, args || []);
         }
-    });
 
-    return exports;
+    });
 });
-webvn.module('storage', ['class', 'util'], function (kclass, util) {
+webvn.extend('Class', function (exports, util) {
+    'use strict';
+    exports.module = function (requires, fn) {
+        var exports = {};
+
+        if (util.isFunction(requires) && fn === undefined) {
+            fn = requires;
+            requires = [];
+        }
+
+        webvn.use(requires, function() {
+            var args = util.toArray(arguments);
+            args.splice(args.length - 1, 0, exports);
+            var ret = fn.apply(null, args);
+            if (ret) exports = ret;
+        });
+
+        return exports;
+    };
+});
+webvn.module('storage', function (Class, util) {
     "use strict";
     var exports = {};
 
-    var localStore = kclass.module(function () {
+    var localStore = Class.module(function () {
         var exports = {};
 
         var localStore = window.localStorage;
@@ -261,7 +276,7 @@ webvn.module('storage', ['class', 'util'], function (kclass, util) {
 
     var prefix = 'wvn-';
 
-    var LocalStore = exports.LocalStore = kclass.create({
+    var LocalStore = exports.LocalStore = Class.create({
 
         constructor: function LocalStore(name) {
             var key = this.key = prefix + name;
@@ -335,13 +350,13 @@ webvn.module('storage', ['class', 'util'], function (kclass, util) {
 
     return exports;
 });
-webvn.extend('storage', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('storage', function (exports, Class, util) {
     "use strict";
     var createLocalStore = exports.createLocalStore;
 
     function emptyFunc() {}
 
-    var Save = exports.Save = kclass.create({
+    var Save = exports.Save = Class.create({
 
         constructor: function Save(saveFn, loadFn) {
             this.saveFn = saveFn || emptyFunc;
@@ -354,7 +369,7 @@ webvn.extend('storage', ['class', 'util'], function (exports, kclass, util) {
                 return this;
             }
 
-            this.saveFn.call(null, fn);
+            return this.saveFn.call(null);
         },
 
         load: function (fn) {
@@ -379,15 +394,14 @@ webvn.extend('storage', ['class', 'util'], function (exports, kclass, util) {
     };
 
     exports.save = function (name) {
+
         var localStore = createLocalStore(name);
         localStore.clear();
 
         var values = {};
 
         util.each(saves, function (save, key) {
-            var value = {};
-            save.save(value);
-            values[key] = value;
+            values[key] = save.save();
         });
 
         localStore.set(values);
@@ -404,7 +418,7 @@ webvn.extend('storage', ['class', 'util'], function (exports, kclass, util) {
     };
 
 });
-webvn.extend('config', ['class', 'storage'], function (exports, kclass, storage) {
+webvn.extend('config', function (exports, kclass, storage) {
     var configStore = storage.createLocalStore('config');
 
     var Config = exports.Config = storage.LocalStore.extend({
@@ -438,7 +452,8 @@ webvn.extend('config', ['class', 'storage'], function (exports, kclass, storage)
         }
 
         if (exports[name]) {
-            configs[name].set(exports[name], false);
+            exports.build === 'release' ? configs[name].set(exports[name], false) :
+                configs[name].set(exports[name], true);
         }
 
         return configs[name];
@@ -446,7 +461,7 @@ webvn.extend('config', ['class', 'storage'], function (exports, kclass, storage)
 
 });
 
-webvn.extend('storage', ['class', 'config'], function (exports, kclass, config) {
+webvn.extend('storage', function (exports, Class, config) {
     "use strict";
 
     var basePath = '';
@@ -456,7 +471,7 @@ webvn.extend('storage', ['class', 'config'], function (exports, kclass, config) 
 
     var fileExt = /(jpg|png|bmp|ogg|webm)$/;
 
-    var Asset = exports.Asset = kclass.create({
+    var Asset = exports.Asset = Class.create({
 
         constructor: function Asset(path, extension) {
             this.path = path || '';
@@ -489,7 +504,7 @@ webvn.extend('storage', ['class', 'config'], function (exports, kclass, config) 
 /**
  * @namespace webvn.select
  */
-webvn.module('select', ['util'], function (util) {
+webvn.module('select', function (util) {
     "use strict";
     var exports = {};
 
@@ -577,7 +592,7 @@ webvn.module('select', ['util'], function (util) {
 
     return exports;
 });
-webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('select', function (exports, Class, util) {
     "use strict";
 
     var selectUtil = exports.util;
@@ -610,7 +625,7 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
      * @class webvn.select.Select
      * @param {string|object} selector
      */
-    var Select = exports.Select = kclass.create({
+    var Select = exports.Select = Class.create({
         /**
          * @memberof webvn.select.Select
          */
@@ -716,8 +731,8 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
         removeClass: function (name) {
             return this.each(function () {
                 var classList = this.className;
-                name.split(/\s+/g).forEach(function (kclass) {
-                    classList = classList.replace(new RegExp('(^|\\s)' + kclass + '(\\s|$)'), " ");
+                name.split(/\s+/g).forEach(function (Class) {
+                    classList = classList.replace(new RegExp('(^|\\s)' + Class + '(\\s|$)'), " ");
                 });
                 this.className = classList;
             });
@@ -743,6 +758,18 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
                 this.textContent = text;
             });
         },
+
+        visible: function (visiblity) {
+            if (visiblity === undefined) {
+                return this.css('display') !== 'none';
+            }
+            if (visiblity) {
+                return this.show();
+            } else {
+                return this.hide();
+            }
+        },
+
         /**
          * Display Element
          * @method webvn.select.Select#show
@@ -829,7 +856,6 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
          * Get Element Attribute
          * @method webvn.select.Select#attr
          * @param {string} name
-         * @returns {string}
          */
         attr: function (name, value) {
             // Get attributes
@@ -838,7 +864,7 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
             }
             // Set attributes
             var self = this;
-            return this.each(function (index) {
+            return this.each(function () {
                 if (util.isObject(name)) {
                     util.each(name, function (value, key) {
                         selectUtil.setAttribute(self, key, value);
@@ -848,6 +874,29 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
                 }
             });
         },
+
+        data: function (name, value) {
+            if (util.isString(name)) {
+                name = 'data-' + name;
+            } else if (util.isObject(name)) {
+                util.each(name, function (value, key) {
+                    name[key] = 'data-' + value;
+                });
+            }
+
+            return this.attr(name, value);
+        },
+
+        removeAttr: function (name) {
+            return this.each(function () {
+                if (this.nodeType === 1) {
+                    name.split(' ').forEach(function (name) {
+                        selectUtil.setAttribute(this, name);
+                    }, this);
+                }
+            });
+        },
+
         /**
          * Set HTML
          * @method webvn.select.Select#html
@@ -904,7 +953,8 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
         toArray: function () {
             return this.get();
         }
-    }, {
+    }, {}, {
+
         /**
          * Merge Second Array Into First Array
          * @function webvn.select.Select.merge
@@ -921,6 +971,7 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
             first.length = i;
             return first;
         },
+
         /**
          * Convert html string to actual dom element
          * @function webvn.select.Select.parseHTML
@@ -937,6 +988,7 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
             var elements = div.childNodes;
             return Select.merge([], elements);
         },
+
         /**
          * Whether a Node contains another node
          * @function webvn.select.Select.contains
@@ -946,16 +998,8 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
          */
         contains: function (parent, node) {
             return parent !== node && parent.contains(node);
-        },
-        /**
-         * Extend Select prototype
-         * @function webvn.select.Select.extendFn
-         * @param {object} obj
-         */
-        extendFn: function (obj) {
-            var proto = Select.prototype;
-            util.mix(proto, obj);
         }
+
     });
 
     var rootSelect = new Select(document);
@@ -1042,10 +1086,8 @@ webvn.extend('select', ['class', 'util'], function (exports, kclass, util) {
  * such as the screen width and height.
  * @namespace webvn.system
  */
-webvn.module('system', ['select', 'config'], function (select, config) {
+webvn.module('system', function (select, config, exports) {
     "use strict";
-    var exports = {};
-
     var conf = config.create('system');
 
     // Screen width and height
@@ -1055,17 +1097,18 @@ webvn.module('system', ['select', 'config'], function (select, config) {
     var $title = select.get('title');
 
     // Set window title
-    var setTitle = exports.setTitle = function (text) {
+    var title = exports.title = function (text) {
+        if (text === undefined) {
+            return $title.text();
+        }
         $title.text(text);
     };
 
     // Set default title
-    setTitle(conf.get('title'));
-
-    return exports;
+    title(conf.get('title'));
 });
-webvn.extend('loader', ['util'], function (exports, util) {
-        "use strict";
+webvn.extend('loader', function (exports, util) {
+    "use strict";
 
     var ajaxSettings = {
         // Default type of request
@@ -1249,157 +1292,127 @@ webvn.extend('loader', ['util'], function (exports, util) {
 });
 
 /* Provide function used by parser,
- * Helper function related to wvnScript/javaScript translation
+ * and helper function related to wvnScript/javaScript translation
  */
+webvn.module('parserNode', function (Class, util, exports) {
+    'use strict';
+    exports.lineNum = function (value) {
+        lineNum = value;
+    };
+    var lineNum = 0;
 
-webvn.module('parserNode', ['class', 'util'],
-    function (kclass, util) {
+    exports.expression = function (content) {
+        content = removeLastLineBreak(content);
 
-        var exports = {};
+        return '$$(' + content + ', ' + lineNum + ');\n';
+    };
 
-        var lineNum = 0;
+    exports.label = function (label) {
+        return '"label", "' + util.trim(label) + '"';
+    };
 
-        exports.lineNum = function (value) {
-            "use strict";
-            lineNum = value;
-        };
+    exports.command = function (command) {
+        command = formatParam(escapeQuote(command));
 
-        exports.expression = function (content) {
+        return '"command", "' + util.trim(command) + '"';
+    };
 
-            content = removeLastLineBreak(content);
+    exports.code = function (code) {
+        // Trim every line to make it look decent
+        var lines = code.split('\n');
+        for (var i = 0, len = lines.length; i < len; i++) {
+            lines[i] = util.trim(lines[i]);
+        }
+        code = lines.join('\n');
+        code = escapeQuote(code);
 
-            return '$$(' + content + ', ' + lineNum + ');\n';
+        return '"code", "' + code + '"';
+    };
 
-        };
+    exports.block = function (block) {
+        block = indent(block);
 
-        exports.command = function (command) {
+        return ' {\n' + block + '}\n';
+    };
 
-            command = formatParam(escapeDoubleQuote(command));
+    exports.paramList = function (paramList, param) {
+        return paramList + ', ' + param;
+    };
 
-            return '"command", "' + util.trim(command) + '"';
+    exports.ifWrapper = function (body) {
+        body = indent(body);
 
-        };
+        return '"if", function () {\n' + body + '}\n';
+    };
 
-        exports.code = function (code) {
+    exports['if'] = function (condition, block) {
+        return 'if (' + condition + ')' + block;
+    };
 
-            // Trim every line to make it look decent
-            var lines = code.split('\n');
-            for (var i = 0, len = lines.length; i < len; i++) {
-                lines[i] = util.trim(lines[i]);
-            }
-            code = lines.join(';').replace(/;;/g, ';');
-            code = escapeDoubleQuote(code);
+    exports.ifElse = function (former, latter) {
+        former = removeLastLineBreak(former);
 
-            return '"code", "' + code + '"';
+        return former + ' else ' + util.trim(latter) + '\n';
+    };
 
-        };
-
-        exports.block = function (block) {
-
-            block = indent(block);
-
-            return ' {\n' + block + '}\n';
-
-        };
-
-        exports.paramList = function (paramList, param) {
-
-            return paramList + ', ' + param;
-
-        };
-
-        exports.ifWrapper = function (body) {
-
-            body = indent(body);
-
-            return '"if", function () {\n' + body + '}\n';
-
-        };
-
-        exports['if'] = function (condition, block) {
-
-            return 'if (' + condition + ')' + block;
-
-        };
-
-        exports.ifElse = function (former, latter) {
-
-            former = removeLastLineBreak(former);
-
-            return former + ' else ' + util.trim(latter) + '\n';
-
-        };
-
-        exports['function'] = function (name, param, block) {
-
-            if (block === undefined) {
-                block = param;
-                param = '';
-            }
-
-            return '"function", "' + name + '", function (' + param + ')' + block;
-
-        };
-
-        function removeLastLineBreak(text) {
-
-            var len = text.length;
-
-            if (text[len - 1] === '\n') {
-                text = text.substr(0, len - 1);
-            }
-
-            return text;
-
+    exports['function'] = function (name, param, block) {
+        if (block === undefined) {
+            block = param;
+            param = '';
         }
 
-        function indent(text) {
+        return '"function", "' + name + '", function (' + param + ')' + block;
+    };
 
-            var ret = '\t' + text;
+    function removeLastLineBreak(text) {
+        var len = text.length;
 
-            ret = ret.replace(/\n/g, '\n\t');
+        if (text[len - 1] === '\n') {
+            text = text.substr(0, len - 1);
+        }
 
-            var len = ret.length;
-            if (ret[len - 1] === '\t') {
-                ret = ret.substr(0, len - 1);
+        return text;
+    }
+
+    function indent(text) {
+        var ret = '\t' + text;
+
+        ret = ret.replace(/\n/g, '\n\t');
+
+        var len = ret.length;
+        if (ret[len - 1] === '\t') {
+            ret = ret.substr(0, len - 1);
+        }
+
+        return ret;
+    }
+
+    // Change {{param}} to " + param + "
+    function formatParam(text) {
+        return text.replace(/\{\{/g, '" + ').replace(/}}/g, ' + "');
+    }
+
+    // https://github.com/joliss/js-string-escape/blob/master/index.js
+    var escapeQuote = exports.escapeQuote = function (text) {
+        return ('' + text).replace(/["'\\\n\r\u2028\u2029]/g, function (character) {
+            switch (character) {
+                case '"':
+                case "'":
+                case '\\':
+                    return '\\' + character;
+                case '\n':
+                    return '\\n';
+                case '\r':
+                    return '\\r';
+                case '\u2028':
+                    return '\\u2028';
+                case '\u2029':
+                    return '\\u2029';
             }
+        });
+    };
 
-            return ret;
-
-        }
-
-        // Change {{param}} to " + param + "
-        function formatParam(text) {
-
-            return text.replace(/\{\{/g, '" + ').replace(/}}/g, ' + "');
-
-        }
-
-        // https://github.com/joliss/js-string-escape/blob/master/index.js
-        function escapeDoubleQuote(text) {
-
-            return ('' + text).replace(/["'\\\n\r\u2028\u2029]/g, function (character) {
-                switch (character) {
-                    case '"':
-                    case "'":
-                    case '\\':
-                        return '\\' + character;
-                    case '\n':
-                        return '\\n';
-                    case '\r':
-                        return '\\r';
-                    case '\u2028':
-                        return '\\u2028';
-                    case '\u2029':
-                        return '\\u2029';
-                }
-            });
-
-        }
-
-        return exports;
-
-    });
+});
 webvn.module("parser", function () {
 var exports = {}, require = function(){};
 /* parser generated by jison 0.4.15 */
@@ -1476,12 +1489,12 @@ var exports = {}, require = function(){};
   }
 */
 var parser = (function(){
-var o=function(k,v,o,l){for(o=o||{},l=k.length;l--;o[k[l]]=v);return o},$V0=[1,13],$V1=[1,11],$V2=[1,12],$V3=[1,10],$V4=[1,14],$V5=[1,12,13,14,15,20,21],$V6=[1,16],$V7=[1,21],$V8=[1,12,13,14,15,18,20,21],$V9=[19,24];
+var o=function(k,v,o,l){for(o=o||{},l=k.length;l--;o[k[l]]=v);return o},$V0=[1,15],$V1=[1,14],$V2=[1,12],$V3=[1,13],$V4=[1,11],$V5=[1,16],$V6=[1,13,14,15,16,17,22,23],$V7=[1,18],$V8=[1,23],$V9=[1,13,14,15,16,17,20,22,23],$Va=[21,26];
 var parser = {trace: function trace() { },
 yy: {},
-symbols_: {"error":2,"Root":3,"Body":4,"Line":5,"Expression":6,"If":7,"CodeLine":8,"CodeBlock":9,"Command":10,"Function":11,"COMMAND":12,"CODE_LINE":13,"CODE_BLOCK":14,"IF":15,"CONDITION":16,"Block":17,"ELSE":18,"{":19,"}":20,"FUNCTION":21,"FUNCTION_NAME":22,"ParamList":23,"PARAM":24,"$accept":0,"$end":1},
-terminals_: {2:"error",12:"COMMAND",13:"CODE_LINE",14:"CODE_BLOCK",15:"IF",16:"CONDITION",18:"ELSE",19:"{",20:"}",21:"FUNCTION",22:"FUNCTION_NAME",24:"PARAM"},
-productions_: [0,[3,0],[3,1],[4,1],[4,2],[5,1],[6,1],[6,1],[6,1],[6,1],[6,1],[10,1],[8,1],[9,1],[7,3],[7,3],[7,3],[17,2],[17,3],[11,4],[11,3],[23,1],[23,2]],
+symbols_: {"error":2,"Root":3,"Body":4,"Line":5,"Expression":6,"If":7,"CodeLine":8,"CodeBlock":9,"Command":10,"Label":11,"Function":12,"LABEL":13,"COMMAND":14,"CODE_LINE":15,"CODE_BLOCK":16,"IF":17,"CONDITION":18,"Block":19,"ELSE":20,"{":21,"}":22,"FUNCTION":23,"FUNCTION_NAME":24,"ParamList":25,"PARAM":26,"$accept":0,"$end":1},
+terminals_: {2:"error",13:"LABEL",14:"COMMAND",15:"CODE_LINE",16:"CODE_BLOCK",17:"IF",18:"CONDITION",20:"ELSE",21:"{",22:"}",23:"FUNCTION",24:"FUNCTION_NAME",26:"PARAM"},
+productions_: [0,[3,0],[3,1],[4,1],[4,2],[5,1],[6,1],[6,1],[6,1],[6,1],[6,1],[6,1],[11,1],[10,1],[8,1],[9,1],[7,3],[7,3],[7,3],[19,2],[19,3],[12,4],[12,3],[25,1],[25,2]],
 performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate /* action[1] */, $$ /* vstack */, _$ /* lstack */) {
 /* this == yyval */
 
@@ -1493,7 +1506,7 @@ break;
 case 2:
 return this.$ = $$[$0]
 break;
-case 3: case 10: case 21:
+case 3: case 11: case 12: case 23:
 this.$ = $$[$0]
 break;
 case 4:
@@ -1511,36 +1524,36 @@ break;
 case 9:
 this.$ = yy.command($$[$0])
 break;
-case 11:
-yy.lineNum(yylineno); this.$ = $$[$0];
+case 10:
+this.$ = yy.label($$[$0])
 break;
-case 12: case 13:
+case 13: case 14: case 15:
 yy.lineNum(yylineno); this.$ = $$[$0]
 break;
-case 14:
+case 16:
 yy.lineNum(yylineno); this.$ = yy["if"]($$[$0-1], $$[$0])
 break;
-case 15: case 16:
+case 17: case 18:
 this.$ = yy.ifElse($$[$0-2], $$[$0])
 break;
-case 17:
+case 19:
 this.$ = yy.block("")
 break;
-case 18:
+case 20:
 this.$ = yy.block($$[$0-1])
 break;
-case 19:
+case 21:
 this.$ = yy["function"]($$[$0-2], $$[$0-1], $$[$0])
 break;
-case 20:
+case 22:
 this.$ = yy["function"]($$[$0-1], $$[$0])
 break;
-case 22:
+case 24:
 this.$ = yy.paramList($$[$0-1], $$[$0])
 break;
 }
 },
-table: [{1:[2,1],3:1,4:2,5:3,6:4,7:5,8:6,9:7,10:8,11:9,12:$V0,13:$V1,14:$V2,15:$V3,21:$V4},{1:[3]},{1:[2,2],5:15,6:4,7:5,8:6,9:7,10:8,11:9,12:$V0,13:$V1,14:$V2,15:$V3,21:$V4},o($V5,[2,3]),o($V5,[2,5]),o($V5,[2,6],{18:$V6}),o($V5,[2,7]),o($V5,[2,8]),o($V5,[2,9]),o($V5,[2,10]),{16:[1,17]},o($V5,[2,12]),o($V5,[2,13]),o($V5,[2,11]),{22:[1,18]},o($V5,[2,4]),{7:19,15:$V3,17:20,19:$V7},{17:22,19:$V7},{17:24,19:$V7,23:23,24:[1,25]},o($V5,[2,15],{18:$V6}),o($V8,[2,16]),{4:27,5:3,6:4,7:5,8:6,9:7,10:8,11:9,12:$V0,13:$V1,14:$V2,15:$V3,20:[1,26],21:$V4},o($V8,[2,14]),{17:28,19:$V7,24:[1,29]},o($V5,[2,20]),o($V9,[2,21]),o($V8,[2,17]),{5:15,6:4,7:5,8:6,9:7,10:8,11:9,12:$V0,13:$V1,14:$V2,15:$V3,20:[1,30],21:$V4},o($V5,[2,19]),o($V9,[2,22]),o($V8,[2,18])],
+table: [{1:[2,1],3:1,4:2,5:3,6:4,7:5,8:6,9:7,10:8,11:9,12:10,13:$V0,14:$V1,15:$V2,16:$V3,17:$V4,23:$V5},{1:[3]},{1:[2,2],5:17,6:4,7:5,8:6,9:7,10:8,11:9,12:10,13:$V0,14:$V1,15:$V2,16:$V3,17:$V4,23:$V5},o($V6,[2,3]),o($V6,[2,5]),o($V6,[2,6],{20:$V7}),o($V6,[2,7]),o($V6,[2,8]),o($V6,[2,9]),o($V6,[2,10]),o($V6,[2,11]),{18:[1,19]},o($V6,[2,14]),o($V6,[2,15]),o($V6,[2,13]),o($V6,[2,12]),{24:[1,20]},o($V6,[2,4]),{7:21,17:$V4,19:22,21:$V8},{19:24,21:$V8},{19:26,21:$V8,25:25,26:[1,27]},o($V6,[2,17],{20:$V7}),o($V9,[2,18]),{4:29,5:3,6:4,7:5,8:6,9:7,10:8,11:9,12:10,13:$V0,14:$V1,15:$V2,16:$V3,17:$V4,22:[1,28],23:$V5},o($V9,[2,16]),{19:30,21:$V8,26:[1,31]},o($V6,[2,22]),o($Va,[2,23]),o($V9,[2,19]),{5:17,6:4,7:5,8:6,9:7,10:8,11:9,12:10,13:$V0,14:$V1,15:$V2,16:$V3,17:$V4,22:[1,32],23:$V5},o($V6,[2,21]),o($Va,[2,24]),o($V9,[2,20])],
 defaultActions: {},
 parseError: function parseError(str, hash) {
     if (hash.recoverable) {
@@ -1713,10 +1726,8 @@ if (typeof module !== 'undefined' && require.main === module) {
 }
 return exports;
 });
-webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
+webvn.module('lexer', function (Class, log, util, exports) {
     "use strict";
-    var exports = {};
-
     /**
      * @class webvn.script.Token
      * @param {string} tag tag name
@@ -1724,7 +1735,8 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
      * @param {object} locationData {first_line, first_column, last_line, last_column}
      * @returns {Array} result [tag, value, locationData]
      */
-    var Token = exports.Token = kclass.create({
+    var Token = exports.Token = Class.create({
+
         constructor: function (tag, value, locationData) {
             var token = [];
             token[0] = tag;
@@ -1732,12 +1744,15 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             token[2] = locationData;
             return token;
         }
+
     });
 
     var EOF = 'END_OF_FILE';
 
-    var Lexer = exports.Lexer = kclass.create({
-        constructor: function Lexer() { },
+    var Lexer = exports.Lexer = Class.create({
+
+        constructor: function Lexer() {},
+
         reConfigure: function (code) {
 
             this.input = code;
@@ -1749,6 +1764,7 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             this.tokens = [];
 
         },
+
         tokenize: function (code) {
 
             this.reConfigure(code);
@@ -1762,17 +1778,19 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             return this.tokens;
 
         },
+
         lastTokenIs: function (target) {
             var token = this.tokens[this.tokens.length - 1];
             return token && token[0] === target;
         },
+
         pushToken: function (token) {
 
             this.tokens.push(token);
 
         },
-        createToken: function (tag, value, locationData) {
 
+        createToken: function (tag, value, locationData) {
             if (value === undefined) {
                 value = tag;
                 if (locationData === undefined) {
@@ -1788,8 +1806,8 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             return new Token(tag, value, locationData);
 
         },
-        nextToken: function () {
 
+        nextToken: function () {
             while (this.c !== EOF) {
                 switch (this.c) {
                     case ' ': case '\t': case '\r': this.WS(); continue;
@@ -1848,7 +1866,10 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                         } else if (this.c === 'f' && this.lookAhead(7, 'unction')) {
                             this.consumes(8);
                             return this.createToken('FUNCTION');
-                        } else if (this.isLetter(this.c)) {
+                        } else if (this.c === '*') {
+                            this.consume(1);
+                            return this.label();
+                        }else if (this.isLetter(this.c)) {
                             /* If nothing above matches and it is a letter currently,
                              * it is a command(function call, alias command).
                              */
@@ -1859,19 +1880,22 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                     }
                 }
             }
-
         },
+
         /* WS: (' ' | '\t' | '\r')*; Ignore any white space.
          * Line break is not part of the white space group
          * since it is used to indicate the end of line comment and other stuff
          */
         WS: function () {
-            while (this.c === ' ' ||
-            this.c === '\t' ||
-            this.c === '\r') {
+            while (this.empty(this.c)) {
                 this.advance();
             }
         },
+
+        empty: function (c) {
+            return c === ' ' || c === '\t' || c === '\r';
+        },
+
         // Move one character and detect end of file
         advance: function () {
 
@@ -1889,13 +1913,13 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             }
 
         },
+
         // Move to next non-whitespace character
         consume: function () {
-
             this.advance();
             this.WS();
-
         },
+
         // Consume several times
         consumes: function (num) {
 
@@ -1906,6 +1930,7 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             }
 
         },
+
         // Look ahead n character, and see if it resembles target
         lookAhead: function (len, target) {
             var str = '', i;
@@ -1914,30 +1939,34 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             }
             return str === target;
         },
+
         isLetter: function (char) {
             if (!util.isString(char) || char.length !== 1) {
                 return false;
             }
             var code = char.charCodeAt(0);
             return ((code >= 65) && (code <= 90)) ||
-                ((code >= 97) && (code <= 122));
+                ((code >= 97) && (code <= 122)) ||
+                // Chinese is regarded as legal letter too.
+                ((code >= 19968) && (code <= 40869));
         },
+
         // Line comment, starts with '//' until the line break
         commentLine: function () {
-
             this.consumes(2);
+
             while (!(this.c === '\n')) {
                 this.consume();
                 if (this.c === EOF) {
                     break;
                 }
             }
-
         },
+
         // Block comment, starts with '/*', ends with '*/'
         commentBlock: function () {
-
             this.consumes(2);
+
             while (!(this.c === '*' && this.lookAhead(1, '/'))) {
                 this.consume();
                 if (this.c === EOF) {
@@ -1947,9 +1976,9 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
             this.consume();
 
         },
+
         // Line code, starts with '`' until the line break
         codeLine: function () {
-
             var value = '',
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -1974,11 +2003,10 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         },
+
         // Block code, starts with '```', ends with '```'
         codeBlock: function () {
-
             var value = '',
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -2006,11 +2034,10 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         },
+
         // Condition
         condition: function () {
-
             var value = '', leftBracket = 0,
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -2041,10 +2068,9 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         },
-        functionName: function () {
 
+        functionName: function () {
             var value = '',
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -2065,10 +2091,9 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         },
-        functionParam: function () {
 
+        functionParam: function () {
             var value = '',
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -2089,11 +2114,36 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         },
+
+        label: function () {
+            var value = '',
+                firstLine, firstColumn, lastLine, lastColumn;
+
+            firstLine = this.currentLine;
+            firstColumn = this.currentColumn;
+
+            while (!(this.c === '\n') && this.isLetter(this.c)) {
+                value += this.c;
+                if (this.c === EOF) {
+                    break;
+                }
+                this.advance();
+            }
+
+            lastLine = this.currentLine;
+            lastColumn = this.currentColumn - 1;
+
+            return this.createToken('LABEL', value, {
+                first_line: firstLine,
+                first_column: firstColumn,
+                last_line: lastLine,
+                last_column: lastColumn
+            });
+        },
+
         // Command, ends with line break;
         command: function () {
-
             var value = '',
                 firstLine, firstColumn, lastLine, lastColumn;
 
@@ -2129,14 +2179,12 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
                 last_line: lastLine,
                 last_column: lastColumn
             });
-
         }
     });
 
     var _lexer = new Lexer;
 
     exports.lexer = function (code) {
-
         var tokens;
 
         try {
@@ -2145,10 +2193,7 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
         } catch (e) {
             log.error(e.message);
         }
-
     };
-
-    return exports;
 });
 /**
  * The WebVN script controller <br>
@@ -2157,10 +2202,8 @@ webvn.module('lexer', ['class', 'log', 'util'], function (kclass, log, util) {
  * Note: the parser is generated by jison.
  * @namespace webvn.script
  */
-webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lexer', 'log', 'storage'], function (config, parser, parserYy, util, loader, lexer, log, storage) {
+webvn.module('script', function (config, parser, parserNode, util, loader, lexer, log, storage, Class, exports) {
     "use strict";
-    var exports = {};
-
     var conf = config.create('script');
 
     lexer = lexer.lexer;
@@ -2195,68 +2238,17 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
         }
     };
 
-    parser.yy = parserYy;
+    parser.yy = parserNode;
 
     var parse = exports.parse = function (scenario) {
-
         var tokens = lexer(scenario);
         return parser.parse(tokens);
-
     };
 
     // Parse the source code and eval it
     var wvnEval = exports.eval = function (code) {
-
-        jsEval(parse(code));
-
+        exports.jsEval(parse(code));
     };
-
-    // JavaScript Eval.
-
-    // Eval javaScript code with not return value.
-    var jsEval = exports.jsEval = function (code) {
-
-        _jsEval(code);
-
-    };
-
-    /* Eval javaScript code with return value.
-     * Only simple expressions are allowed to pass in.
-     */
-    exports.jsEvalVal = function (code) {
-
-        return _jsEval(code, true);
-
-    };
-
-    var emptyStr = '';
-
-    function _jsEval(code, returnOrNot) {
-        "use strict";
-
-        if (util.trim(code) === '') {
-            return emptyStr;
-        }
-
-        var scope = {};
-
-        var functionName = util.guid('eval');
-
-        code = 'scope["' + functionName + '"]=function(){' +
-        (returnOrNot ? 'return (' : '') +
-        code +
-        (returnOrNot ? ');' : '') +'}';
-
-        try {
-            eval(code);
-        } catch (e) {
-            log.error(e.message);
-            return emptyStr;
-        }
-
-        return scope[functionName]();
-
-    }
 
     // Script controller
 
@@ -2275,8 +2267,10 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
     var isSource = true;
 
     //noinspection JSUnusedLocalSymbols
-    var $$ = exports.$$ = function (type, value) {
-        var source = util.makeArray(arguments);
+    exports.$$ = function () {
+        var source = util.toArray(arguments);
+
+        preExec(source, sources.length);
 
         /* When executing,
          * command defined inside a if statement
@@ -2288,6 +2282,39 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
             middles.push(source);
         }
     };
+
+    // Execute command when first load, handle things like label
+    function preExec(source, line) {
+        switch (source[0]) {
+            case 'label':
+                label.create(source[1], line);
+                break;
+            case 'function':
+                // Since functions can't be stored, we have to create them at start
+                functions.create(source[1], source[2]);
+                break;
+        }
+    }
+
+    var label = Class.module(function () {
+        var exports = {};
+
+        var labels = {};
+
+        exports.create = function (name, lineNum) {
+            labels[name] = lineNum;
+        };
+
+        exports.has = function (name) {
+            return labels[name] !== undefined;
+        };
+
+        exports.get = function (name) {
+            return labels[name];
+        };
+
+        return exports;
+    });
 
     var asset = storage.createAsset(conf.get('path'), conf.get('extension'));
 
@@ -2305,9 +2332,7 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
         });
 
         loader.scenario(scenarios, function (data, isLast) {
-
             loadText(data, isLast);
-
         });
 
     };
@@ -2334,6 +2359,10 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
             case 'code':
                 execCode(unit);
                 break;
+            case 'label':
+                // Just pass it
+                play();
+                break;
             default:
                 log.warn("Unknown command type");
                 break;
@@ -2341,23 +2370,102 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
 
     };
 
+    var alias = exports.alias = Class.module(function () {
+        var exports = {};
+
+        var container = {};
+
+        exports.create = function (name, value) {
+            container[name] = value;
+        };
+
+        var commandRegex = /^[^\s]+/;
+
+        exports.parse = function (str) {
+            var command = commandRegex.exec(str)[0];
+            if (container[command]) {
+                return str.replace(commandRegex, container[command]);
+            }
+
+            return str;
+        };
+
+        return exports;
+    });
+
+    var functions = Class.module(function () {
+        var exports = {};
+
+        var container = {};
+
+        exports.create = function (name, fn) {
+            container[name] = fn;
+        };
+
+        exports.has = function (name) {
+            return container[name] !== undefined;
+        };
+
+        var spaceRegex = /\s/;
+
+        exports.execute = function (name, params) {
+            var fn = container[name];
+
+            // Wrap params with spaces
+            params = params.map(function (value) {
+                if (spaceRegex.test(value)) {
+                    value = "'" + value + "'";
+                }
+                return value;
+            });
+
+            isSource = false;
+            fn.apply(null, params);
+            isSource = true;
+
+            executions = middles.concat(executions);
+            middles = [];
+        };
+
+        return exports;
+    });
+
     function execCommand(command) {
         var lineNum = command[2],
             commandText = cmdBeautify(command[1]);
+
+        log.info('Command: ' + commandText + ' ' + lineNum);
+
+        // Before parse command, do the alias replacement first.
+        commandText = alias.parse(commandText);
+
         command = exports.parseCommand(commandText);
         var name = command.name,
-            options = command.options;
+            options = command.options,
+            values = command.values;
+
+        // Execute function
+        if (functions.has(name)) {
+            functions.execute(name, values);
+            play();
+            return;
+        }
+
+        // Execute command
         var cmd = exports.getCommand(name);
         if (!cmd) {
+            if (functions.has('default')) {
+                functions.execute('default', [commandText]);
+                play();
+                return;
+            }
             log.warn('Command ' + name + ' doesn\'t exist');
             return;
         }
-        log.info('Command: ' + commandText + ' ' + lineNum);
-        cmd.exec(options);
+        cmd.execute(options);
     }
 
     function cmdBeautify(str) {
-        "use strict";
         return str.split('\n').
             map(function (value) {
                 return util.trim(value);
@@ -2367,7 +2475,7 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
     function execCode(code) {
         var lineNum = code[2];
         log.info('Code: ' + code[1] + ' ' + lineNum);
-        jsEval(code[1]);
+        exports.jsEval(code[1]);
     }
 
     /* Indicate which line is being executed now,
@@ -2377,20 +2485,33 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
 
     // Start executing the scripts from beginning.
     var start = exports.start = function () {
-
         reset();
         play();
+    };
 
+    exports.jump = function (labelName) {
+        // Clear executions
+        if (!label.has(labelName)) {
+            log.warn('Label ' + labelName + ' not found');
+            return;
+        }
+        executions = [];
+        curNum = label.get(labelName);
+        resume();
+    };
+
+    exports.insertCmd = function (script) {
+        isSource = false;
+        wvnEval(script);
+        isSource = true;
     };
 
     // Reset everything to initial state
     var reset = exports.reset = function () {
-
         isPaused = false;
         curNum = 0;
         middles = [];
         executions = [];
-
     };
 
     // Whether
@@ -2420,26 +2541,36 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
 
     // Load executions script
     function loadExecutions() {
-
-        var source;
+        var source, isCommand = false;
 
         while (true) {
             if (!_loadExecutions()) {
                 return;
             }
+
             source = executions.shift();
-            if (source[0] !== 'if') {
+
+            switch (source[0]) {
+                case 'if':
+                    isSource = false;
+                    source[1]();
+                    isSource = true;
+                    executions = middles.concat(executions);
+                    middles = [];
+                    break;
+                case 'function':
+                    functions.create(source[1], source[2]);
+                    break;
+                default:
+                    isCommand = true;
+            }
+
+            if (isCommand) {
                 break;
             }
-            isSource = false;
-            source[1]();
-            isSource = true;
-            executions = middles.concat(executions);
-            middles = [];
         }
 
         return source;
-
     }
 
     function _loadExecutions() {
@@ -2459,7 +2590,7 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
     }
 
     //noinspection JSUnusedLocalSymbols
-    var pause = exports.pause = function (duration) {
+    var pause = exports.pause = function (duration, cb) {
 
         isPaused = true;
 
@@ -2467,22 +2598,91 @@ webvn.module('script', ['config', 'parser', 'parserNode', 'util', 'loader', 'lex
             setTimeout(function () {
 
                 isPaused = false;
+                cb && cb();
 
             }, duration);
         }
 
     };
 
-    return exports;
+    exports.wait = function (duration) {
+        pause(duration, function () {
+            play();
+        });
+    };
 });
-webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('script', function (exports, util, storage) {
     "use strict";
+    var globalStore = storage.createLocalStore('global'),
+        g = globalStore.get(), s = {};
 
-    // Container of commands
+    // Quick reference
+    var playNext = exports.play;
+
+    // Eval javaScript code with not return value.
+    exports.jsEval = function (code) {
+        _jsEval(code);
+    };
+
+    /* Eval javaScript code with return value.
+     * Only simple expressions are allowed to pass in.
+     */
+    exports.jsEvalVal = function (code) {
+        return _jsEval(code, true);
+    };
+
+    var emptyStr = '';
+
+    function _jsEval(code, returnOrNot) {
+
+        if (util.trim(code) === '') {
+            return emptyStr;
+        }
+
+        var scope = {};
+
+        var functionName = util.uid('eval');
+
+        code = 'scope["' + functionName + '"]=function(){' +
+        (returnOrNot ? 'return (' : '') +
+        code +
+        (returnOrNot ? ');' : '') +'}';
+
+        try {
+            var $$ = exports.$$;
+            eval(code);
+        } catch (e) {
+            log.error(e.message);
+            return emptyStr;
+        }
+
+        /* Save it after a while,
+         * in case that the eval process is not finished.
+         */
+        setTimeout(function () {
+            globalStore.save();
+        }, 1000);
+
+        return scope[functionName]();
+    }
+
+    var save = storage.create('s');
+    save.save(function () {
+        return s;
+    }).load(function (value) {
+        s = value;
+    });
+});
+webvn.extend('script', function (exports, Class, util) {
+    "use strict";
     var commands = {};
 
     exports.getCommand = function (name) {
         return commands[name];
+    };
+
+    exports.createCommand = function (px) {
+        new (Command.extend(px));
     };
 
     /**
@@ -2492,34 +2692,44 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
      * @class webvn.script.Command
      * @param {string} name command name
      */
-    exports.Command = kclass.create({
+    var Command = exports.Command = Class.create({
         constructor: function Command(name) {
             // Add to commands first
             if (commands[name]) {
                 log.warn('The command ' + name + ' is overwritten');
             }
             commands[name] = this;
-            // Init shortHands
-            var shortHands = {};
+
+            // Init shortHands and defaults
+            var shortHands = {},
+                defaults = {};
             util.each(this.options, function (value, key) {
-                if (value.shortHand) {
-                    shortHands[value.shortHand] = key;
-                }
+                value.shortHand && (shortHands[value.shortHand] = key);
+                value.defaultValue && (defaults[key] = value.defaultValue);
             });
             this.shortHands = shortHands;
+            this.defaults = defaults;
         },
+
         shortHands: {},
         options: {},
         orders: [],
+
+        playNext: function (value) {
+            value && exports.play();
+        },
+
         /**
          * Execute command with given options.
          * @method webvn.script.Command#exec
          * @param {object} values
          */
-        exec: function (values) {
+        execute: function (values) {
             values = this.parseOptions(values);
+            values = this.evalValue(values);
             this.execution(values);
         },
+
         /**
          * Call functions according to option values.
          * If you like, you can re-implement it.
@@ -2527,16 +2737,49 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
          * @param {object} values values parsed from scripts
          */
         execution: function (values) {
-            "use strict";
-            var orders = this.orders, value, order;
+            var orders = this.orders,
+                defaults = this.defaults,
+                value, order, def;
+
+            this.beforeExec(values);
+
             for (var i = 0, len = orders.length; i < len; i++) {
                 order = orders[i];
                 value = values[order];
-                if (value !== undefined && this[order] && util.isFunction(this[order])) {
-                    this[order](value);
+                def = defaults[order];
+
+                if (!util.isFunction(this[order])) {
+                     continue;
+                }
+
+                if (value !== undefined) {
+                    this[order](value, values);
+                } else if (def !== undefined) {
+                    this[order](def, values);
                 }
             }
+
+            this.afterExec(values);
         },
+
+        beforeExec: function (values) {},
+
+        afterExec: function (values) {},
+
+        evalValue: function (values) {
+            var ret = {};
+
+            util.each(values, function (value, key) {
+                if (util.isString(value) && util.startsWith(value, '`')) {
+                    ret[key] = exports.jsEvalVal(value.substr(1));
+                } else {
+                    ret[key] = value;
+                }
+            });
+
+            return ret;
+        },
+
         /**
          * Parse options for final usage in execution function.
          * @param values
@@ -2580,27 +2823,37 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
             });
             return ret;
         },
+
         /**
          * Parse option value into specific type
          * @method webvn.script.Command#parseValue
          * @param {string} type String, Boolean...
          * @param {string} value value to be parsed
-         * @returns {string|boolean|number|object}
+         * @returns {*}
          */
         parseValue: function (type, value) {
+            // Support null assignment
+            switch (value) {
+                case 'null':
+                    return null;
+            }
+
+            // LowerCase the type, so that you can write either 'String' or 'string'
+            type = type.toLowerCase();
             switch (type) {
-                case 'String':
+                case 'string':
                     return String(value);
-                case 'Boolean':
+                case 'boolean':
                     return !(value === 'false' || value === '0');
-                case 'Number':
+                case 'number':
                     return Number(value);
-                case 'Json':
+                case 'json':
                     return JSON.parse(value);
                 default:
                     return value;
             }
         }
+
     });
 
     exports.parseCommand = function (text) {
@@ -2663,7 +2916,7 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
 
         var options = {},
             ret = {},
-            value = [];
+            values = [];
         ret.name = parts.shift();
         for (i = 0, len = parts.length; i < len; i++) {
             var part = parts[i];
@@ -2672,14 +2925,14 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
                 options[opt.name] = opt.value;
                 continue;
             }
-            value.push(part);
+            values.push(part);
         }
         ret.options = options;
-        ret.value = value;
+        ret.values = values;
 
         return ret;
 
-    }
+    };
 
     /* Change --t=none
      * into {name:'--t', value:'none'}
@@ -2710,192 +2963,186 @@ webvn.extend('script', ['class', 'util'], function (exports, kclass, util) {
  * Zepto's implementation is way too simple and has some kind of problem
  * Now I have to implement my own version :(
  */
+webvn.module('event', function (util, select, Class) {
 
-webvn.module('event', ['util', 'select', 'class'],
-    function (util, select, kclass) {
+    var event = {};
 
-        var event = {};
+    /* Add event
+     * All events are attached to the elem's events, it looks as below:
+     * ele.events = {
+     *      'click': [],
+     *      'mouseenter': []
+     * }
+     */
+    event.add = function (ele, type, fn, selector) {
 
-        /* Add event
-         * All events are attached to the elem's events, it looks as below:
-         * ele.events = {
-         *      'click': [],
-         *      'mouseenter': []
-         * }
-         */
-        event.add = function (ele, type, fn, selector) {
+        var handleObj = {
+            selector: selector,
+            handler: fn
+        }, handlers;
 
-            var handleObj = {
-                    selector: selector,
-                    handler: fn
-                }, handlers;
+        if (!ele.events) {
+            ele.events = {};
+        }
+        if (!(handlers = ele.events[type])) {
+            handlers = ele.events[type] = [];
+            handlers.delegateCount = 0;
+            ele.addEventListener(type, function (e) {
 
-            if (!ele.events) {
-                ele.events = {};
+                trigger.apply(ele, arguments);
+
+            }, false);
+        }
+
+        if (selector) {
+            handlers.splice(handlers.delegateCount++, 0, handleObj);
+        } else {
+            handlers.push(handleObj);
+        }
+
+    };
+
+    event.Event = Class.create({
+        constructor: function Event(e) {
+
+            this.originalEvent = e;
+
+        },
+        isDefaultPrevented: returnFalse,
+        isPropagationStopped: returnFalse,
+        isImmediatePropagationStopped: returnFalse,
+        preventDefault: function () {
+
+            var e = this.originalEvent;
+            this.isDefaultPrevented = returnTrue;
+            if (e && e.preventDefault) {
+                e.preventDefault();
             }
-            if (!(handlers = ele.events[type])) {
-                handlers = ele.events[type] = [];
-                handlers.delegateCount = 0;
-                ele.addEventListener(type, function (e) {
 
-                    trigger.apply(ele, arguments);
+        },
+        stopPropagation: function () {
 
-                }, false);
+            var e = this.originalEvent;
+            this.isPropagationStopped = returnTrue;
+            if (e && e.stopPropagation) {
+                e.stopPropagation();
             }
 
-            if (selector) {
-                handlers.splice(handlers.delegateCount++, 0, handleObj);
-            } else {
-                handlers.push(handleObj);
+        },
+        stopImmediatePropagation: function () {
+
+            var e = this.originalEvent;
+            this.isImmediatePropagationStopped = returnTrue;
+            if (e && e.stopImmediatePropagation) {
+                e.stopImmediatePropagation();
             }
+            this.stopPropagation();
 
-        };
+        }
+    });
 
-        event.Event = kclass.create({
-            constructor: function Event(e) {
+    function returnFalse() {
 
-                this.originalEvent = e;
+        return false;
 
-            },
-            isDefaultPrevented: returnFalse,
-            isPropagationStopped: returnFalse,
-            isImmediatePropagationStopped: returnFalse,
-            preventDefault: function() {
+    }
 
-                var e = this.originalEvent;
-                this.isDefaultPrevented = returnTrue;
-                if ( e && e.preventDefault ) {
+    function returnTrue() {
+
+        return true;
+
+    }
+
+    function trigger(e) {
+
+        var handlers = this.events[e.type],
+            handlerObj,
+            handlerQueue = formatHandlers.call(this, e, handlers);
+
+        e = new event.Event(e);
+
+        var i, j, matched, ret;
+
+        i = 0;
+        while ((matched = handlerQueue[i++]) && !e.isPropagationStopped()) {
+            e.currentTarget = matched.elem;
+            j = 0;
+            while ((handleObj = matched.handlers[j++]) && !e.isImmediatePropagationStopped()) {
+                ret = handleObj.handler.apply(matched.elem, [e]);
+                if (ret === false) {
                     e.preventDefault();
-                }
-
-            },
-            stopPropagation: function() {
-
-                var e = this.originalEvent;
-                this.isPropagationStopped = returnTrue;
-                if ( e && e.stopPropagation ) {
                     e.stopPropagation();
                 }
-
-            },
-            stopImmediatePropagation: function() {
-
-                var e = this.originalEvent;
-                this.isImmediatePropagationStopped = returnTrue;
-                if ( e && e.stopImmediatePropagation ) {
-                    e.stopImmediatePropagation();
-                }
-                this.stopPropagation();
-
             }
-        });
-
-        function returnFalse() {
-
-            return false;
-
         }
 
-        function returnTrue() {
+    }
 
-            return true;
+    function formatHandlers(e, handlers) {
 
-        }
+        var cur = e.target,
+            matches,
+            handlerQueue = [],
+            delegateCount = handlers.delegateCount;
 
-        function trigger(e) {
-
-            var handlers = this.events[e.type],
-                handlerObj,
-                handlerQueue = formatHandlers.call(this, e, handlers);
-
-            e = new event.Event(e);
-
-            var i, j, matched, ret;
-
-            i = 0;
-            while ((matched = handlerQueue[i++]) && !e.isPropagationStopped()) {
-                e.currentTarget = matched.elem;
-                j = 0;
-                while ((handleObj = matched.handlers[j++]) &&
-                    !e.isImmediatePropagationStopped() ) {
-                    ret = handleObj.handler.apply(matched.elem, [e]);
-                    if (ret === false) {
-                        e.preventDefault();
-                        e.stopPropagation();
+        if (cur.nodeType) {
+            for (; cur !== this; cur = cur.parentNode || this) {
+                matches = [];
+                for (var i = 0; i < delegateCount; i++) {
+                    handleObj = handlers[i];
+                    sel = handleObj.selector + ' ';
+                    if (matches[sel] === undefined) {
+                        matches[sel] = util.contains(this.querySelectorAll(sel), cur);
+                    }
+                    if (matches[sel]) {
+                        matches.push(handleObj);
                     }
                 }
-            }
-
-        }
-
-        function formatHandlers(e, handlers) {
-
-            var cur = e.target,
-                matches,
-                handlerQueue = [],
-                delegateCount = handlers.delegateCount;
-
-            if (cur.nodeType) {
-                for ( ; cur !== this; cur = cur.parentNode || this ) {
-                    matches = [];
-                    for (var i = 0; i < delegateCount; i++) {
-                        handleObj = handlers[i];
-                        sel = handleObj.selector + ' ';
-                        if (matches[sel] === undefined) {
-                            matches[sel] = util.contains(this.querySelectorAll(sel), cur);
-                        }
-                        if (matches[sel]) {
-                            matches.push(handleObj);
-                        }
-                    }
-                    if (matches.length) {
-                        handlerQueue.push({elem: cur, handlers: matches});
-                    }
+                if (matches.length) {
+                    handlerQueue.push({elem: cur, handlers: matches});
                 }
             }
-            if (delegateCount < handlers.length) {
-                handlerQueue.push({
-                    elem: this,
-                    handlers: handlers.slice(delegateCount)
-                });
-            }
-
-            return handlerQueue;
-
+        }
+        if (delegateCount < handlers.length) {
+            handlerQueue.push({
+                elem: this,
+                handlers: handlers.slice(delegateCount)
+            });
         }
 
-        // Extend select method
-        select.Select.extendFn({
-            /**
-             * Event binding
-             * @method webvn.select.Select#on
-             * @param {string} type
-             * @param {string=} selector
-             * @param {function} fn
-             * @returns {Select}
-             */
-            on: function (type, selector, fn) {
-                if (fn === undefined) {
-                    fn = selector;
-                    selector = undefined;
-                }
-                return this.each(function (_, ele) {
-                    event.add(ele, type, fn, selector);
-                });
+        return handlerQueue;
+
+    }
+
+    // Extend select method
+    select.Select.extendFn({
+        /**
+         * Event binding
+         * @method webvn.select.Select#on
+         * @param {string} type
+         * @param {string=} selector
+         * @param {function} fn
+         * @returns {Select}
+         */
+        on: function (type, selector, fn) {
+            if (fn === undefined) {
+                fn = selector;
+                selector = undefined;
             }
-        });
-
-        return event;
-
+            return this.each(function (_, ele) {
+                event.add(ele, type, fn, selector);
+            });
+        }
     });
+
+    return event;
+
+});
 /**
  * @namespace webvn.anim
  */
-webvn.module('anim', function () {
+webvn.module('anim', function (exports) {
     "use strict";
-
-    var exports = {};
-
     var ease = {};
 
     ease.linear = function(x, t, b, c, d) {
@@ -3061,10 +3308,8 @@ webvn.module('anim', function () {
     };
 
     exports.ease = ease;
-
-    return exports;
 });
-webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, util, select) {
+webvn.extend('anim', function (exports, Class, util, select) {
     "use strict";
 
     var STATE = {
@@ -3072,21 +3317,22 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
         PLAY: 1
     };
 
-    var Anim = exports.Anim = kclass.create({
+    var requestAnim = window.requestAnimationFrame;
+
+    var Anim = exports.Anim = Class.create({
+
         constructor: function Anim(target) {
             this.loop = false;
             this.target = target;
             this.clear();
         },
+
         clear: function () {
-            if (this._intervalId) {
-                clearInterval(this._intervalId);
-            }
-            this._intervalId = null;
             this.state = STATE.PAUSE;
             this._steps = [];
             this._curStep = 0;
         },
+
         to: function (props, duration, easeName) {
             if (!util.isNumber(duration) || duration < 0) {
                 duration = 0;
@@ -3102,17 +3348,19 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
             this.play();
             return this;
         },
+
         pause: function () {
             if (this.state === STATE.PAUSE) {
                 return;
             }
             this.state = STATE.PAUSE;
-            clearInterval(this._intervalId);
         },
+
         stop: function () {
             this._curStep = 0;
             this.pause();
         },
+
         play: function () {
             if (this._steps.length === 0 || this.state === STATE.PLAY) {
                 return;
@@ -3142,12 +3390,14 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
             this.state = STATE.PLAY;
             return this;
         },
+
         playTo: function (step) {
             var self = this,
                 start = +new Date,
                 finish = start + step.duration,
                 origin = {},
                 diff = {};
+
             /* If target is a Select instance,
              * Animate Css properties instead.
              */
@@ -3163,11 +3413,15 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
                 }
                 diff[key] = value - origin[key];
             });
-            this._intervalId = setInterval(function () {
+
+            this._render = function () {
+                if (self.state === STATE.PAUSE) {
+                    return;
+                }
+
                 var time = +new Date;
                 // One step of tween is finish
                 if (time > finish) {
-                    clearInterval(self._intervalId);
                     if (isSelect) {
                         self.target.css(step.props);
                     } else {
@@ -3193,13 +3447,18 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
                 if (isSelect) {
                     self.target.css(values);
                 }
-            }, 16);
+                requestAnim(self._render);
+            };
+
+            requestAnim(this._render);
         },
+
         playCall: function (step) {
             step.fn.call(this);
             this.state = STATE.PAUSE;
             this.play();
         },
+
         playWait: function (step) {
             var self = this;
             setTimeout(function () {
@@ -3207,6 +3466,7 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
                 self.play();
             }, step.duration);
         },
+
         wait: function (duration) {
             this._steps.push({
                 type: 'wait',
@@ -3215,6 +3475,7 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
             this.play();
             return this;
         },
+
         call: function (fn) {
             if (!util.isFunction(fn)) {
                 return;
@@ -3232,12 +3493,13 @@ webvn.extend('anim', ['class', 'util', 'select'], function (exports, kclass, uti
         return new Anim(target);
     };
 });
-webvn.extend('select', ['anim', 'util'], function (exports, anim, util) {
+webvn.extend('select', function (exports, anim, util) {
     "use strict";
 
     var Anim = anim.Anim;
 
     exports.Select.extendFn({
+
         fadeIn: function (duration, cb) {
             var opacity = this.css('opacity');
             if (opacity > 0) {
@@ -3248,6 +3510,7 @@ webvn.extend('select', ['anim', 'util'], function (exports, anim, util) {
                 opacity: 1
             }, duration).call(cb);
         },
+
         fadeOut: function (duration, cb) {
             var self = this;
             new Anim(this).to({
@@ -3260,11 +3523,9 @@ webvn.extend('select', ['anim', 'util'], function (exports, anim, util) {
     });
 
 });
-webvn.module('webgl', ['class', 'util', 'log'], function (kclass, util, log) {
+webvn.module('webgl', function (Class, util, log, config, exports) {
     "use strict";
-    var exports = {};
-
-    exports.fragShader = kclass.module(function () {
+    exports.fragShader = Class.module(function () {
         var exports = {};
 
         var shaders = {};
@@ -3286,7 +3547,7 @@ webvn.module('webgl', ['class', 'util', 'log'], function (kclass, util, log) {
         return exports;
     });
 
-    exports.vertexShader = kclass.module(function () {
+    exports.vertexShader = Class.module(function () {
         var exports = {};
 
         var shaders = {};
@@ -3308,7 +3569,7 @@ webvn.module('webgl', ['class', 'util', 'log'], function (kclass, util, log) {
         return exports;
     });
 
-    var Shader = exports.Shader = kclass.create({
+    var Shader = exports.Shader = Class.create({
 
         constructor: function Shader(gl, type) {
             this.gl = gl;
@@ -3330,6 +3591,9 @@ webvn.module('webgl', ['class', 'util', 'log'], function (kclass, util, log) {
             gl.shaderSource(this.value, source);
             gl.compileShader(this.value);
 
+            if (config.build === 'release') {
+                return;
+            }
             var compileStatus = gl.getShaderParameter(this.value, gl.COMPILE_STATUS);
             // If compileStatus not true, something is wrong.
             if (!compileStatus) {
@@ -3344,53 +3608,67 @@ webvn.module('webgl', ['class', 'util', 'log'], function (kclass, util, log) {
     exports.createShader = function (gl, type) {
         return new Shader(gl, type);
     };
-
-    return exports;
 });
-webvn.use(["webgl"], function (webgl) { webgl.fragShader.create({
-    "HSVfade": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvec3 hsv2rgb(vec3 c) {\n    const vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);\n    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);\n    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);\n}\nvec3 rgb2hsv(vec3 c) {\n    const vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);\n    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));\n    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));\n    float d = q.x - min(q.w, q.y);\n    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 0.001)), d / (q.x + 0.001), q.x);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec3 a = rgb2hsv(texture2D(from, p).rgb);\n    vec3 b = rgb2hsv(texture2D(to, p).rgb);\n    vec3 m = mix(a, b, progress);\n    vec4 r = vec4(hsv2rgb(m), mix(texture2D(from, p).a, texture2D(to, p).a, progress));\n    gl_FragColor = r;\n}",
-    "advancedMosaic": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main(void)\n{\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float T = progress;\n    float S0 = 1.0;\n    float S1 = 50.0;\n    float S2 = 1.0;\n    float Half = 0.5;\n    float PixelSize = ( T < Half ) ? mix( S0, S1, T / Half ) : mix( S1, S2, (T-Half) / Half );\n    vec2 D = PixelSize / resolution.xy;\n    vec2 UV = ( p + vec2( -0.5 ) ) / D;\n    vec2 Coord = clamp( D * ( ceil( UV + vec2( -0.5 ) ) ) + vec2( 0.5 ), vec2( 0.0 ), vec2( 1.0 ) );\n    vec4 C0 = texture2D( from, Coord );\n    vec4 C1 = texture2D( to, Coord );\n    gl_FragColor = mix( C0, C1, T );\n}",
-    "burn": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec3 color = vec3(0.9, 0.4, 0.2);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(\n        texture2D(from, p) + vec4(progress*color, 0.0),\n        texture2D(to, p) + vec4((1.0-progress)*color, 0.0),\n        progress);\n}",
-    "butterflyWaveScrawler": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float amplitude = 1.0;\nconst float waves = 30.0;\nconst float colorSeparation = 0.3;\nfloat PI = 3.14159265358979323846264;\nfloat compute(vec2 p, float progress, vec2 center) {\n    vec2 o = p*sin(progress * amplitude)-center;\n    vec2 h = vec2(1., 0.);\n    float theta = acos(dot(o, h)) * waves;\n    return (exp(cos(theta)) - 2.*cos(4.*theta) + pow(sin((2.*theta - PI) / 24.), 5.)) / 10.;\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1. - progress;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    float disp = compute(p, progress, vec2(0.5, 0.5)) ;\n    vec4 texTo = texture2D(to, p + inv*disp);\n    vec4 texFrom = vec4(\n    texture2D(from, p + progress*disp*(1.0 - colorSeparation)).r,\n    texture2D(from, p + progress*disp).g,\n    texture2D(from, p + progress*disp*(1.0 + colorSeparation)).b,\n    1.0);\n    gl_FragColor = texTo*progress + texFrom*inv;\n}",
-    "circleOpen": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float smoothness = 0.3;\nconst bool opening = true;\nconst vec2 center = vec2(0.5, 0.5);\nconst float SQRT_2 = 1.414213562373;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = opening ? progress : 1.-progress;\n    float m = smoothstep(-smoothness, 0.0, SQRT_2*distance(center, p) - x*(1.+smoothness));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), opening ? 1.-m : m);\n}",
-    "colourDistance": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fTex = texture2D(from,p);\n    vec4 tTex = texture2D(to,p);\n    gl_FragColor = mix(distance(fTex,tTex)>progress?fTex:tTex, tTex, pow(progress,5.0));\n}",
-    "crazyParametricFun": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float a = 4.0;\nconst float b = 1.0;\nconst float amplitude = 120.0;\nconst float smoothness = 0.1;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    float x = (a - b) * cos(progress) + b * cos(progress * ((a / b) - 1.) );\n    float y = (a - b) * sin(progress) - b * sin(progress * ((a / b) - 1.));\n    vec2 offset = dir * vec2(sin(progress  * dist * amplitude * x), sin(progress * dist * amplitude * y)) / smoothness;\n    gl_FragColor = mix(texture2D(from, p + offset), texture2D(to, p), smoothstep(0.2, 1.0, progress));\n}",
-    "crossHatch": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec2 center = vec2(0.5, 0.5);\nfloat quadraticInOut(float t) {\n    float p = 2.0 * t * t;\n    return t < 0.5 ? p : -p + (4.0 * t) - 1.0;\n}\nfloat rand(vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    if (progress == 0.0) {\n        gl_FragColor = texture2D(from, p);\n    } else if (progress == 1.0) {\n        gl_FragColor = texture2D(to, p);\n    } else {\n        float x = progress;\n        float dist = distance(center, p);\n        float r = x - min(rand(vec2(p.y, 0.0)), rand(vec2(0.0, p.x)));\n        float m = dist <= r ? 1.0 : 0.0;\n        gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n    }\n}",
-    "crossZoom": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float PI = 3.141592653589793;\nfloat Linear_ease(in float begin, in float change, in float duration, in float time) {\n    return change * time / duration + begin;\n}\nfloat Exponential_easeInOut(in float begin, in float change, in float duration, in float time) {\n    if (time == 0.0)\n        return begin;\n    else if (time == duration)\n        return begin + change;\n    time = time / (duration / 2.0);\n    if (time < 1.0)\n        return change / 2.0 * pow(2.0, 10.0 * (time - 1.0)) + begin;\n    return change / 2.0 * (-pow(2.0, -10.0 * (time - 1.0)) + 2.0) + begin;\n}\nfloat Sinusoidal_easeInOut(in float begin, in float change, in float duration, in float time) {\n    return -change / 2.0 * (cos(PI * time / duration) - 1.0) + begin;\n}\nfloat random(in vec3 scale, in float seed) {\n    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);\n}\nvec3 crossFade(in vec2 uv, in float dissolve) {\n    return mix(texture2D(from, uv).rgb, texture2D(to, uv).rgb, dissolve);\n}\nvoid main() {\n    vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n    vec2 center = vec2(Linear_ease(0.25, 0.5, 1.0, progress), 0.5);\n    float dissolve = Exponential_easeInOut(0.0, 1.0, 1.0, progress);\n    float strength = Sinusoidal_easeInOut(0.0, 0.4, 0.5, progress);\n    vec3 color = vec3(0.0);\n    float total = 0.0;\n    vec2 toCenter = center - texCoord;\n    float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0);\n    for (float t = 0.0; t <= 40.0; t++) {\n        float percent = (t + offset) / 40.0;\n        float weight = 4.0 * (percent - percent * percent);\n        color += crossFade(texCoord + toCenter * percent * strength, dissolve) * weight;\n        total += weight;\n    }\n    gl_FragColor = vec4(color / total, 1.0);\n}",
-    "defocusBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform float progress;\nuniform vec2 resolution;\nuniform sampler2D from;\nuniform sampler2D to;\nvoid main(void) {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float T = progress;\n    float S0 = 1.0;\n    float S1 = 50.0;\n    float S2 = 1.0;\n    float Half = 0.5;\n    float PixelSize = ( T < Half ) ? mix( S0, S1, T / Half ) : mix( S1, S2, (T-Half) / Half );\n    vec2 D = PixelSize / resolution.xy;\n    vec2 UV = (gl_FragCoord.xy / resolution.xy);\n    const int NumTaps = 12;\n    vec2 Disk[NumTaps];\n    Disk[0] = vec2(-.326,-.406);\n    Disk[1] = vec2(-.840,-.074);\n    Disk[2] = vec2(-.696, .457);\n    Disk[3] = vec2(-.203, .621);\n    Disk[4] = vec2( .962,-.195);\n    Disk[5] = vec2( .473,-.480);\n    Disk[6] = vec2( .519, .767);\n    Disk[7] = vec2( .185,-.893);\n    Disk[8] = vec2( .507, .064);\n    Disk[9] = vec2( .896, .412);\n    Disk[10] = vec2(-.322,-.933);\n    Disk[11] = vec2(-.792,-.598);\n    vec4 C0 = texture2D( from, UV );\n    vec4 C1 = texture2D( to, UV );\n    for ( int i = 0; i != NumTaps; i++ )\n    {\n        C0 += texture2D( from, Disk[i] * D + UV );\n        C1 += texture2D( to, Disk[i] * D + UV );\n    }\n    C0 /= float(NumTaps+1);\n    C1 /= float(NumTaps+1);\n    gl_FragColor = mix( C0, C1, T );\n}",
-    "directionalWipe": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec2 direction = vec2(1.0, -1.0);\nconst float smoothness = 0.5;\nconst vec2 center = vec2(0.5, 0.5);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 v = normalize(direction);\n    v /= abs(v.x)+abs(v.y);\n    float d = v.x * center.x + v.y * center.y;\n    float m = smoothstep(-smoothness, 0.0, v.x * p.x + v.y * p.y - (d-0.5+progress*(1.+smoothness)));\n    gl_FragColor = mix(texture2D(to, p), texture2D(from, p), m);\n}",
-    "dispersionBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\n#define QUALITY 32\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float GOLDEN_ANGLE = 2.399963229728653;\nvec4 blur(sampler2D t, vec2 c, float radius) {\n    vec4 sum = vec4(0.0);\n    float q = float(QUALITY);\n    for (int i=0; i<QUALITY; ++i) {\n        float fi = float(i);\n        float a = fi * GOLDEN_ANGLE;\n        float r = sqrt(fi / q) * radius;\n        vec2 p = c + r * vec2(cos(a), sin(a));\n        sum += texture2D(t, p);\n    }\n    return sum / q;\n}\nvoid main()\n{\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1.-progress;\n    gl_FragColor = inv*blur(from, p, progress*0.6) + progress*blur(to, p, inv*0.6);\n}",
-    "dissolve": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float blocksize = 1.0;\nfloat rand(vec2 co) {\n    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), step(rand(floor(gl_FragCoord.xy/blocksize)), progress));\n}",
-    "doomScreenTransition": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nfloat rand(int num) {\n    return fract(mod(float(num) * 67123.313, 12.0) * sin(float(num) * 10.3) * cos(float(num)));\n}\nfloat wave(int num) {\n    float fn = float(num) * 1.0 * 0.1 * float(10.0);\n    return cos(fn * 0.5) * cos(fn * 0.13) * sin((fn+10.0) * 0.3) / 2.0 + 0.5;\n}\nfloat pos(int num) {\n    return wave(num);\n}\nvoid main() {\n    int bar = int(gl_FragCoord.x) / 10;\n    float scale = 1.0 + pos(bar) * 2.0;\n    float phase = progress * scale;\n    float posY = gl_FragCoord.y / resolution.y;\n    vec2 p;\n    vec4 c;\n    if (phase + posY < 1.0) {\n        p = vec2(gl_FragCoord.x, gl_FragCoord.y + mix(0.0, resolution.y, phase)) / resolution.xy;\n        c = texture2D(from, p);\n    } else {\n        p = gl_FragCoord.xy / resolution.xy;\n        c = texture2D(to, p);\n    }\n    gl_FragColor = c;\n}",
+webvn.use(function (webgl) { webgl.fragShader.create({
+    "colorMatrix": "#ifdef GL_ES\r\n    precision mediump float;\r\n#endif\r\n\r\nvarying vec2 v_Uv;\r\nuniform sampler2D u_Sampler;\r\nuniform float m[20];\r\n\r\nvoid main() {\r\n    vec4 c = texture2D(u_Sampler, v_Uv);\r\n    gl_FragColor.r = m[0] * c.r + m[1] * c.g + m[2] * c.b + m[3] * c.a + m[4];\r\n    gl_FragColor.g = m[5] * c.r + m[6] * c.g + m[7] * c.b + m[8] * c.a + m[9];\r\n    gl_FragColor.b = m[10] * c.r + m[11] * c.g + m[12] * c.b + m[13] * c.a + m[14];\r\n    gl_FragColor.a = m[15] * c.r + m[16] * c.g + m[17] * c.b + m[18] * c.a + m[19];\r\n}",
+    "convolution": "precision mediump float;\r\nvarying vec2 v_Uv;\r\nuniform sampler2D u_Sampler;\r\nuniform vec2 u_Px;\r\nuniform float m[9];\r\nvoid main(void) {\r\n    vec4 c11 = texture2D(u_Sampler, v_Uv - u_Px);\r\n    vec4 c12 = texture2D(u_Sampler, vec2(v_Uv.x, v_Uv.y - u_Px.y));\r\n    vec4 c13 = texture2D(u_Sampler, vec2(v_Uv.x + u_Px.x, v_Uv.y - u_Px.y));\r\n    vec4 c21 = texture2D(u_Sampler, vec2(v_Uv.x - u_Px.x, v_Uv.y));\r\n    vec4 c22 = texture2D(u_Sampler, v_Uv);\r\n    vec4 c23 = texture2D(u_Sampler, vec2(v_Uv.x + u_Px.x, v_Uv.y));\r\n    vec4 c31 = texture2D(u_Sampler, vec2(v_Uv.x - u_Px.x, v_Uv.y + u_Px.y));\r\n    vec4 c32 = texture2D(u_Sampler, vec2(v_Uv.x, v_Uv.y + u_Px.y));\r\n    vec4 c33 = texture2D(u_Sampler, v_Uv + u_Px);\r\n    gl_FragColor =\r\n        c11 * m[0] + c12 * m[1] + c22 * m[2] +\r\n        c21 * m[3] + c22 * m[4] + c23 * m[5] +\r\n        c31 * m[6] + c32 * m[7] + c33 * m[8];\r\n    gl_FragColor.a = c22.a;\r\n}",
     "drawImage": "#ifdef GL_ES\r\n    precision mediump float;\r\n#endif\r\n\r\nuniform sampler2D u_Sampler;\r\nuniform float u_Alpha;\r\nvarying vec4 test;\r\nvarying vec2 v_TexCoord;\r\n\r\nvoid main() {\r\n    vec4 textureColor = texture2D(u_Sampler, v_TexCoord);\r\n    gl_FragColor = vec4(textureColor.rgb, textureColor.a * u_Alpha);\r\n}",
-    "dreamy": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvec2 offset(float progress, float x, float theta) {\n    float phase = progress*progress + progress + theta;\n    float shifty = 0.03*progress*cos(10.0*(progress+x));\n    return vec2(0, shifty);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(texture2D(from, p + offset(progress, p.x, 0.0)), texture2D(to, p + offset(1.0-progress, p.x, 3.14)), progress);\n}",
-    "dreamyZoom": "#ifdef GL_ES\nprecision mediump float;\n#endif\n#define DEG2RAD 0.03926990816987241548078304229099\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    float phase = progress < 0.5 ? progress * 2.0 : (progress - 0.5) * 2.0;\n    float angleOffset = progress < 0.5 ? mix(0.0, 6.0 * DEG2RAD, phase) : mix(-6.0 * DEG2RAD, 0.0, phase);\n    float newScale = progress < 0.5 ? mix(1.0, 1.2, phase) : mix(1.2, 1.0, phase);\n    vec2 center = vec2(0, 0);\n    float maxRes = max(resolution.x, resolution.y);\n    float resX = resolution.x / maxRes * 0.5;\n    float resY = resolution.y / maxRes * 0.5;\n    vec2 p = (gl_FragCoord.xy / maxRes - vec2(resX, resY)) / newScale;\n    float angle = atan(p.y, p.x) + angleOffset;\n    float dist = distance(center, p);\n    p.x = cos(angle) * dist + resX;\n    p.y = sin(angle) * dist + resY;\n    vec4 c = progress < 0.5 ? texture2D(from, p) : texture2D(to, p);\n    gl_FragColor = c + (progress < 0.5 ? mix(0.0, 1.0, phase) : mix(1.0, 0.0, phase));\n}",
-    "fadeColorBlack": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec3 color = vec3(0.0, 0.0, 0.0);\nconst float colorPhase = 0.4;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(\n        mix(vec4(color, 1.0), texture2D(from, p), smoothstep(1.0-colorPhase, 0.0, progress)),\n        mix(vec4(color, 1.0), texture2D(to,   p), smoothstep(    colorPhase, 1.0, progress)),\n        progress);\n    gl_FragColor.a = mix(texture2D(from, p).a, texture2D(to, p).a, progress);\n}",
-    "fadeGrayscale": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float grayPhase = 0.3;\nvec3 grayscale (vec3 color) {\n    return vec3(0.2126*color.r + 0.7152*color.g + 0.0722*color.b);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fc = texture2D(from, p);\n    vec4 tc = texture2D(to, p);\n    gl_FragColor = mix(\n        mix(vec4(grayscale(fc.rgb), 1.0), texture2D(from, p), smoothstep(1.0-grayPhase, 0.0, progress)),\n        mix(vec4(grayscale(tc.rgb), 1.0), texture2D(to,   p), smoothstep(    grayPhase, 1.0, progress)),\n        progress);\n    gl_FragColor.a = mix(fc.a, tc.a, progress);\n}",
-    "flyEye": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float size = 0.04;\nconst float zoom = 30.0;\nconst float colorSeparation = 0.3;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1. - progress;\n    vec2 disp = size*vec2(cos(zoom*p.x), sin(zoom*p.y));\n    vec4 texTo = texture2D(to, p + inv*disp);\n    vec4 texFrom = vec4(\n        texture2D(from, p + progress*disp*(1.0 - colorSeparation)).r,\n        texture2D(from, p + progress*disp).g,\n        texture2D(from, p + progress*disp*(1.0 + colorSeparation)).b,\n        texture2D(from, p + progress*disp).a);\n    gl_FragColor = texTo*progress + texFrom*inv;\n}",
-    "glitchDisplace": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nmediump float random(vec2 co)\n{\n    mediump float a = 12.9898;\n    mediump float b = 78.233;\n    mediump float c = 43758.5453;\n    mediump float dt= dot(co.xy ,vec2(a,b));\n    mediump float sn= mod(dt,3.14);\n    return fract(sin(sn) * c);\n}\nfloat voronoi( in vec2 x ) {\n    vec2 p = floor( x );\n    vec2 f = fract( x );\n    float res = 8.0;\n    for( float j=-1.; j<=1.; j++ )\n    for( float i=-1.; i<=1.; i++ ) {\n        vec2  b = vec2( i, j );\n        vec2  r = b - f + random( p + b );\n        float d = dot( r, r );\n        res = min( res, d );\n    }\n    return sqrt( res );\n}\nvec2 displace(vec4 tex, vec2 texCoord, float dotDepth, float textureDepth, float strength) {\n    float b = voronoi(.003 * texCoord + 2.0);\n    float g = voronoi(0.2 * texCoord);\n    float r = voronoi(texCoord - 1.0);\n    vec4 dt = tex * 1.0;\n    vec4 dis = dt * dotDepth + 1.0 - tex * textureDepth;\n    dis.x = dis.x - 1.0 + textureDepth*dotDepth;\n    dis.y = dis.y - 1.0 + textureDepth*dotDepth;\n    dis.x *= strength;\n    dis.y *= strength;\n    vec2 res_uv = texCoord ;\n    res_uv.x = res_uv.x + dis.x - 0.0;\n    res_uv.y = res_uv.y + dis.y;\n    return res_uv;\n}\nfloat ease1(float t) {\n    return t == 0.0 || t == 1.0\n        ? t\n        : t < 0.5\n        ? +0.5 * pow(2.0, (20.0 * t) - 10.0)\n        : -0.5 * pow(2.0, 10.0 - (t * 20.0)) + 1.0;\n}\nfloat ease2(float t) {\n    return t == 1.0 ? t : 1.0 - pow(2.0, -10.0 * t);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 color1 = texture2D(from, p);\n    vec4 color2 = texture2D(to, p);\n    vec2 disp = displace(color1, p, 0.33, 0.7, 1.0-ease1(progress));\n    vec2 disp2 = displace(color2, p, 0.33, 0.5, ease2(progress));\n    vec4 dColor1 = texture2D(to, disp);\n    vec4 dColor2 = texture2D(from, disp2);\n    float val = ease1(progress);\n    vec3 gray = vec3(dot(min(dColor2, dColor1).rgb, vec3(0.299, 0.587, 0.114)));\n    dColor2 = vec4(gray, 1.0);\n    dColor2 *= 2.0;\n    color1 = mix(color1, dColor2, smoothstep(0.0, 0.5, progress));\n    color2 = mix(color2, dColor1, smoothstep(1.0, 0.5, progress));\n    gl_FragColor = mix(color1, color2, val);\n}",
-    "kaleidoScope": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 q = p;\n    float t = pow(progress, 2.0)*1.0;\n    p = p -0.5;\n    for (int i = 0; i < 7; i++) {\n        p = vec2(sin(t)*p.x + cos(t)*p.y, sin(t)*p.y - cos(t)*p.x);\n        t += 2.0;\n        p = abs(mod(p, 2.0) - 1.0);\n    }\n    abs(mod(p, 1.0));\n    gl_FragColor = mix(\n        mix(texture2D(from, q), texture2D(to, q), progress),\n        mix(texture2D(from, p), texture2D(to, p), progress), 1.0 - 2.0*abs(progress - 0.5));\n}",
-    "linear": "#ifdef GL_ES\r\n  precision mediump float;\r\n#endif\r\n\r\nuniform sampler2D from, to;\r\nuniform float progress;\r\nuniform vec2 resolution;\r\n\r\nvoid main() {\r\n  vec2 p = gl_FragCoord.xy / resolution.xy;\r\n  gl_FragColor = mix(texture2D(from, p), texture2D(to, p), progress);\r\n}",
-    "linearBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float intensity = 0.1;\nconst int PASSES = 8;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 c1 = vec4(0.0), c2 = vec4(0.0);\n    float disp = intensity*(0.5-distance(0.5, progress));\n    for (int xi=0; xi<PASSES; ++xi) {\n        float x = float(xi) / float(PASSES) - 0.5;\n        for (int yi=0; yi<PASSES; ++yi) {\n            float y = float(yi) / float(PASSES) - 0.5;\n            vec2 v = vec2(x,y);\n            float d = disp;\n            c1 += texture2D(from, p + d*v);\n            c2 += texture2D(to, p + d*v);\n        }\n    }\n    c1 /= float(PASSES*PASSES);\n    c2 /= float(PASSES*PASSES);\n    gl_FragColor = mix(c1, c2, progress);\n}",
-    "morph": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float strength=0.1;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 ca = texture2D(from, p);\n    vec4 cb = texture2D(to, p);\n    vec2 oa = (((ca.rg+ca.b)*0.5)*2.0-1.0);\n    vec2 ob = (((cb.rg+cb.b)*0.5)*2.0-1.0);\n    vec2 oc = mix(oa,ob,0.5)*strength;\n    float w0 = progress;\n    float w1 = 1.0-w0;\n    gl_FragColor = mix(texture2D(from, p+oc*w0), texture2D(to, p-oc*w1), progress);\n}",
-    "polkaDots": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float dots = 5.0;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = progress;\n    bool nextImage = distance(fract(p * dots), vec2(0.5, 0.5)) < x;\n    if(nextImage)\n        gl_FragColor = texture2D(to, p);\n    else\n        gl_FragColor = texture2D(from, p);\n}",
-    "polkaDotsCurtain": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float SQRT_2 = 1.414213562373;\nconst float dots = 20.0;\nconst vec2 center = vec2(1.0, 1.0);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = progress /2.0;\n    bool nextImage = distance(fract(p * dots), vec2(0.5, 0.5)) < (2.0 * x / distance(p, center));\n    if(nextImage) gl_FragColor = texture2D(to, p);\n    else gl_FragColor = texture2D(from, p);\n}",
-    "radial": "#ifdef GL_ES\nprecision mediump float;\n#endif\n#define PI 3.141592653589\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 rp = p*2.-1.;\n    float a = atan(rp.y, rp.x);\n    float pa = progress*PI*2.5-PI*1.25;\n    vec4 fromc = texture2D(from, p);\n    vec4 toc = texture2D(to, p);\n    if(a>pa) {\n        gl_FragColor = mix(toc, fromc, smoothstep(0., 1., (a-pa)));\n    } else {\n        gl_FragColor = toc;\n    }\n}",
-    "randomSquares": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nfloat rand(vec2 co){\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    float revProgress = (1.0 - progress);\n    float distFromEdges = min(progress, revProgress);\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fromColor = texture2D(from, p);\n    vec4 toColor = texture2D(to, p);\n    float squareSize = 20.0;\n    float flickerSpeed = 60.0;\n    vec2 seed = floor(gl_FragCoord.xy / squareSize) * floor(distFromEdges * flickerSpeed);\n    gl_FragColor = mix(fromColor, toColor, progress) + rand(seed) * distFromEdges * 0.5;\n}",
-    "randomSquares2": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst ivec2 size = ivec2(10.0, 10.0);\nconst float smoothness = 0.5;\nfloat rand (vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float r = rand(floor(vec2(size) * p));\n    float m = smoothstep(0.0, -smoothness, r - (progress * (1.0 + smoothness)));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n}",
-    "ripple": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float amplitude = 100.0;\nconst float speed = 50.0;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    vec2 offset = dir * (sin(progress * dist * amplitude - progress * speed) + .5) / 30.;\n    gl_FragColor = mix(texture2D(from, p + offset), texture2D(to, p), smoothstep(0.2, 1.0, progress));\n}",
-    "squareSwipe": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst ivec2 squares = ivec2(10.0, 10.0);\nconst vec2 direction = vec2(1.0, -0.5);\nconst float smoothness = 1.6;\nconst vec2 center = vec2(0.5, 0.5);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 v = normalize(direction);\n    if (v != vec2(0.0))\n        v /= abs(v.x)+abs(v.y);\n    float d = v.x * center.x + v.y * center.y;\n    float offset = smoothness;\n    float pr = smoothstep(-offset, 0.0, v.x * p.x + v.y * p.y - (d-0.5+progress*(1.+offset)));\n    vec2 squarep = fract(p*vec2(squares));\n    vec2 squaremin = vec2(pr/2.0);\n    vec2 squaremax = vec2(1.0 - pr/2.0);\n    float a = all(lessThan(squaremin, squarep)) && all(lessThan(squarep, squaremax)) ? 1.0 : 0.0;\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), a);\n}",
-    "squeeze": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float colorSeparation = 0.02;\nfloat progressY (float y) {\n    return 0.5 + (y-0.5) / (1.0-progress);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float y = progressY(p.y);\n    if (y < 0.0 || y > 1.0) {\n        gl_FragColor = texture2D(to, p);\n    }\n    else {\n        vec2 fp = vec2(p.x, y) + progress*vec2(0.0, colorSeparation);\n        vec4 c = vec4(\n            texture2D(from, fp).r,\n            texture2D(from, fp).g,\n            texture2D(from, fp).b,\n            texture2D(from, fp).a\n            );\n        gl_FragColor = c;\n        if (c.a == 0.0) {gl_FragColor = texture2D(to, p);}\n    }\n}",
-    "wind": "#ifdef GL_ES\n    precision mediump float;\n#endif\n\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float size = 0.2;\n\nfloat rand (vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\n\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float r = rand(vec2(0, p.y));\n    float m = smoothstep(0.0, -size, p.x*(1.0-size) + size*r - (progress * (1.0 + size)));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n}"
+    "trans_HSVfade": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvec3 hsv2rgb(vec3 c) {\n    const vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);\n    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);\n    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);\n}\nvec3 rgb2hsv(vec3 c) {\n    const vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);\n    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));\n    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));\n    float d = q.x - min(q.w, q.y);\n    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 0.001)), d / (q.x + 0.001), q.x);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec3 a = rgb2hsv(texture2D(from, p).rgb);\n    vec3 b = rgb2hsv(texture2D(to, p).rgb);\n    vec3 m = mix(a, b, progress);\n    vec4 r = vec4(hsv2rgb(m), mix(texture2D(from, p).a, texture2D(to, p).a, progress));\n    gl_FragColor = r;\n}",
+    "trans_advancedMosaic": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main(void)\n{\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float T = progress;\n    float S0 = 1.0;\n    float S1 = 50.0;\n    float S2 = 1.0;\n    float Half = 0.5;\n    float PixelSize = ( T < Half ) ? mix( S0, S1, T / Half ) : mix( S1, S2, (T-Half) / Half );\n    vec2 D = PixelSize / resolution.xy;\n    vec2 UV = ( p + vec2( -0.5 ) ) / D;\n    vec2 Coord = clamp( D * ( ceil( UV + vec2( -0.5 ) ) ) + vec2( 0.5 ), vec2( 0.0 ), vec2( 1.0 ) );\n    vec4 C0 = texture2D( from, Coord );\n    vec4 C1 = texture2D( to, Coord );\n    gl_FragColor = mix( C0, C1, T );\n}",
+    "trans_burn": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec3 color = vec3(0.9, 0.4, 0.2);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(\n        texture2D(from, p) + vec4(progress*color, 0.0),\n        texture2D(to, p) + vec4((1.0-progress)*color, 0.0),\n        progress);\n}",
+    "trans_butterflyWaveScrawler": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float amplitude = 1.0;\nconst float waves = 30.0;\nconst float colorSeparation = 0.3;\nfloat PI = 3.14159265358979323846264;\nfloat compute(vec2 p, float progress, vec2 center) {\n    vec2 o = p*sin(progress * amplitude)-center;\n    vec2 h = vec2(1., 0.);\n    float theta = acos(dot(o, h)) * waves;\n    return (exp(cos(theta)) - 2.*cos(4.*theta) + pow(sin((2.*theta - PI) / 24.), 5.)) / 10.;\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1. - progress;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    float disp = compute(p, progress, vec2(0.5, 0.5)) ;\n    vec4 texTo = texture2D(to, p + inv*disp);\n    vec4 texFrom = vec4(\n    texture2D(from, p + progress*disp*(1.0 - colorSeparation)).r,\n    texture2D(from, p + progress*disp).g,\n    texture2D(from, p + progress*disp*(1.0 + colorSeparation)).b,\n    1.0);\n    gl_FragColor = texTo*progress + texFrom*inv;\n}",
+    "trans_circleOpen": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float smoothness = 0.3;\nconst bool opening = true;\nconst vec2 center = vec2(0.5, 0.5);\nconst float SQRT_2 = 1.414213562373;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = opening ? progress : 1.-progress;\n    float m = smoothstep(-smoothness, 0.0, SQRT_2*distance(center, p) - x*(1.+smoothness));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), opening ? 1.-m : m);\n}",
+    "trans_colourDistance": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fTex = texture2D(from,p);\n    vec4 tTex = texture2D(to,p);\n    gl_FragColor = mix(distance(fTex,tTex)>progress?fTex:tTex, tTex, pow(progress,5.0));\n}",
+    "trans_crazyParametricFun": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float a = 4.0;\nconst float b = 1.0;\nconst float amplitude = 120.0;\nconst float smoothness = 0.1;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    float x = (a - b) * cos(progress) + b * cos(progress * ((a / b) - 1.) );\n    float y = (a - b) * sin(progress) - b * sin(progress * ((a / b) - 1.));\n    vec2 offset = dir * vec2(sin(progress  * dist * amplitude * x), sin(progress * dist * amplitude * y)) / smoothness;\n    gl_FragColor = mix(texture2D(from, p + offset), texture2D(to, p), smoothstep(0.2, 1.0, progress));\n}",
+    "trans_crossHatch": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec2 center = vec2(0.5, 0.5);\nfloat quadraticInOut(float t) {\n    float p = 2.0 * t * t;\n    return t < 0.5 ? p : -p + (4.0 * t) - 1.0;\n}\nfloat rand(vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    if (progress == 0.0) {\n        gl_FragColor = texture2D(from, p);\n    } else if (progress == 1.0) {\n        gl_FragColor = texture2D(to, p);\n    } else {\n        float x = progress;\n        float dist = distance(center, p);\n        float r = x - min(rand(vec2(p.y, 0.0)), rand(vec2(0.0, p.x)));\n        float m = dist <= r ? 1.0 : 0.0;\n        gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n    }\n}",
+    "trans_crossZoom": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float PI = 3.141592653589793;\nfloat Linear_ease(in float begin, in float change, in float duration, in float time) {\n    return change * time / duration + begin;\n}\nfloat Exponential_easeInOut(in float begin, in float change, in float duration, in float time) {\n    if (time == 0.0)\n        return begin;\n    else if (time == duration)\n        return begin + change;\n    time = time / (duration / 2.0);\n    if (time < 1.0)\n        return change / 2.0 * pow(2.0, 10.0 * (time - 1.0)) + begin;\n    return change / 2.0 * (-pow(2.0, -10.0 * (time - 1.0)) + 2.0) + begin;\n}\nfloat Sinusoidal_easeInOut(in float begin, in float change, in float duration, in float time) {\n    return -change / 2.0 * (cos(PI * time / duration) - 1.0) + begin;\n}\nfloat random(in vec3 scale, in float seed) {\n    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);\n}\nvec3 crossFade(in vec2 uv, in float dissolve) {\n    return mix(texture2D(from, uv).rgb, texture2D(to, uv).rgb, dissolve);\n}\nvoid main() {\n    vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n    vec2 center = vec2(Linear_ease(0.25, 0.5, 1.0, progress), 0.5);\n    float dissolve = Exponential_easeInOut(0.0, 1.0, 1.0, progress);\n    float strength = Sinusoidal_easeInOut(0.0, 0.4, 0.5, progress);\n    vec3 color = vec3(0.0);\n    float total = 0.0;\n    vec2 toCenter = center - texCoord;\n    float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0);\n    for (float t = 0.0; t <= 40.0; t++) {\n        float percent = (t + offset) / 40.0;\n        float weight = 4.0 * (percent - percent * percent);\n        color += crossFade(texCoord + toCenter * percent * strength, dissolve) * weight;\n        total += weight;\n    }\n    gl_FragColor = vec4(color / total, 1.0);\n}",
+    "trans_cube": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nuniform float persp;\nuniform float unzoom;\nuniform float reflection;\nuniform float floating;\n\nvec2 project (vec2 p) {\n  return p * vec2(1.0, -1.2) + vec2(0.0, -floating/100.);\n}\n\nbool inBounds (vec2 p) {\n  return all(lessThan(vec2(0.0), p)) && all(lessThan(p, vec2(1.0)));\n}\n\nvec4 bgColor (vec2 p, vec2 pfr, vec2 pto) {\n  vec4 c = vec4(0.0, 0.0, 0.0, 1.0);\n  pfr = project(pfr);\n  if (inBounds(pfr)) {\n    c += mix(vec4(0.0), texture2D(from, pfr), reflection * mix(1.0, 0.0, pfr.y));\n  }\n  pto = project(pto);\n  if (inBounds(pto)) {\n    c += mix(vec4(0.0), texture2D(to, pto), reflection * mix(1.0, 0.0, pto.y));\n  }\n  return c;\n}\n\nvec2 xskew (vec2 p, float persp, float center) {\n  float x = mix(p.x, 1.0-p.x, center);\n  return (\n    (\n      vec2( x, (p.y - 0.5*(1.0-persp) * x) / (1.0+(persp-1.0)*x) )\n      - vec2(0.5-distance(center, 0.5), 0.0)\n    )\n    * vec2(0.5 / distance(center, 0.5) * (center<0.5 ? 1.0 : -1.0), 1.0)\n    + vec2(center<0.5 ? 0.0 : 1.0, 0.0)\n  );\n}\n\nvoid main() {\n  vec2 op = gl_FragCoord.xy / resolution.xy;\n  float uz = unzoom * 2.0*(0.5-distance(0.5, progress));\n  vec2 p = -uz*0.5+(1.0+uz) * op;\n  vec2 fromP = xskew(\n    (p - vec2(progress, 0.0)) / vec2(1.0-progress, 1.0),\n    1.0-mix(progress, 0.0, persp),\n    0.0\n  );\n  vec2 toP = xskew(\n    p / vec2(progress, 1.0),\n    mix(pow(progress, 2.0), 1.0, persp),\n    1.0\n  );\n  if (inBounds(fromP)) {\n    gl_FragColor = texture2D(from, fromP);\n  }\n  else if (inBounds(toP)) {\n    gl_FragColor = texture2D(to, toP);\n  }\n  else {\n    gl_FragColor = bgColor(op, fromP, toP);\n  }\n}",
+    "trans_defocusBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform float progress;\nuniform vec2 resolution;\nuniform sampler2D from;\nuniform sampler2D to;\nvoid main(void) {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float T = progress;\n    float S0 = 1.0;\n    float S1 = 50.0;\n    float S2 = 1.0;\n    float Half = 0.5;\n    float PixelSize = ( T < Half ) ? mix( S0, S1, T / Half ) : mix( S1, S2, (T-Half) / Half );\n    vec2 D = PixelSize / resolution.xy;\n    vec2 UV = (gl_FragCoord.xy / resolution.xy);\n    const int NumTaps = 12;\n    vec2 Disk[NumTaps];\n    Disk[0] = vec2(-.326,-.406);\n    Disk[1] = vec2(-.840,-.074);\n    Disk[2] = vec2(-.696, .457);\n    Disk[3] = vec2(-.203, .621);\n    Disk[4] = vec2( .962,-.195);\n    Disk[5] = vec2( .473,-.480);\n    Disk[6] = vec2( .519, .767);\n    Disk[7] = vec2( .185,-.893);\n    Disk[8] = vec2( .507, .064);\n    Disk[9] = vec2( .896, .412);\n    Disk[10] = vec2(-.322,-.933);\n    Disk[11] = vec2(-.792,-.598);\n    vec4 C0 = texture2D( from, UV );\n    vec4 C1 = texture2D( to, UV );\n    for ( int i = 0; i != NumTaps; i++ )\n    {\n        C0 += texture2D( from, Disk[i] * D + UV );\n        C1 += texture2D( to, Disk[i] * D + UV );\n    }\n    C0 /= float(NumTaps+1);\n    C1 /= float(NumTaps+1);\n    gl_FragColor = mix( C0, C1, T );\n}",
+    "trans_directionalWipe": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec2 direction = vec2(1.0, -1.0);\nconst float smoothness = 0.5;\nconst vec2 center = vec2(0.5, 0.5);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 v = normalize(direction);\n    v /= abs(v.x)+abs(v.y);\n    float d = v.x * center.x + v.y * center.y;\n    float m = smoothstep(-smoothness, 0.0, v.x * p.x + v.y * p.y - (d-0.5+progress*(1.+smoothness)));\n    gl_FragColor = mix(texture2D(to, p), texture2D(from, p), m);\n}",
+    "trans_dispersionBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\n#define QUALITY 32\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float GOLDEN_ANGLE = 2.399963229728653;\nvec4 blur(sampler2D t, vec2 c, float radius) {\n    vec4 sum = vec4(0.0);\n    float q = float(QUALITY);\n    for (int i=0; i<QUALITY; ++i) {\n        float fi = float(i);\n        float a = fi * GOLDEN_ANGLE;\n        float r = sqrt(fi / q) * radius;\n        vec2 p = c + r * vec2(cos(a), sin(a));\n        sum += texture2D(t, p);\n    }\n    return sum / q;\n}\nvoid main()\n{\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1.-progress;\n    gl_FragColor = inv*blur(from, p, progress*0.6) + progress*blur(to, p, inv*0.6);\n}",
+    "trans_dissolve": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float blocksize = 1.0;\nfloat rand(vec2 co) {\n    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), step(rand(floor(gl_FragCoord.xy/blocksize)), progress));\n}",
+    "trans_doomScreenTransition": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nfloat rand(int num) {\n    return fract(mod(float(num) * 67123.313, 12.0) * sin(float(num) * 10.3) * cos(float(num)));\n}\nfloat wave(int num) {\n    float fn = float(num) * 1.0 * 0.1 * float(10.0);\n    return cos(fn * 0.5) * cos(fn * 0.13) * sin((fn+10.0) * 0.3) / 2.0 + 0.5;\n}\nfloat pos(int num) {\n    return wave(num);\n}\nvoid main() {\n    int bar = int(gl_FragCoord.x) / 10;\n    float scale = 1.0 + pos(bar) * 2.0;\n    float phase = progress * scale;\n    float posY = gl_FragCoord.y / resolution.y;\n    vec2 p;\n    vec4 c;\n    if (phase + posY < 1.0) {\n        p = vec2(gl_FragCoord.x, gl_FragCoord.y + mix(0.0, resolution.y, phase)) / resolution.xy;\n        c = texture2D(from, p);\n    } else {\n        p = gl_FragCoord.xy / resolution.xy;\n        c = texture2D(to, p);\n    }\n    gl_FragColor = c;\n}",
+    "trans_doorway": "#ifdef GL_ES\nprecision mediump float;\n#endif\n\n// General parameters\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\n \nfloat reflection = 0.4;\nfloat perspective = 0.4;\nfloat depth = 3.0;\n \nconst vec4 black = vec4(0.0, 0.0, 0.0, 1.0);\nconst vec2 boundMin = vec2(0.0, 0.0);\nconst vec2 boundMax = vec2(1.0, 1.0);\n \nbool inBounds (vec2 p) {\n  return all(lessThan(boundMin, p)) && all(lessThan(p, boundMax));\n}\n \nvec2 project (vec2 p) {\n  return p * vec2(1.0, -1.2) + vec2(0.0, -0.02);\n}\n \nvec4 bgColor (vec2 p, vec2 pto) {\n  vec4 c = black;\n  pto = project(pto);\n  if (inBounds(pto)) {\n    c += mix(black, texture2D(to, pto), reflection * mix(1.0, 0.0, pto.y));\n  }\n  return c;\n}\n \nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n \n  vec2 pfr = vec2(-1.), pto = vec2(-1.);\n \n  float middleSlit = 2.0 * abs(p.x-0.5) - progress;\n  if (middleSlit > 0.0) {\n    pfr = p + (p.x > 0.5 ? -1.0 : 1.0) * vec2(0.5*progress, 0.0);\n    float d = 1.0/(1.0+perspective*progress*(1.0-middleSlit));\n    pfr.y -= d/2.;\n    pfr.y *= d;\n    pfr.y += d/2.;\n  }\n \n  float size = mix(1.0, depth, 1.-progress);\n  pto = (p + vec2(-0.5, -0.5)) * vec2(size, size) + vec2(0.5, 0.5);\n \n  if (inBounds(pfr)) {\n    gl_FragColor = texture2D(from, pfr);\n  }\n  else if (inBounds(pto)) {\n    gl_FragColor = texture2D(to, pto);\n  }\n  else {\n    gl_FragColor = bgColor(p, pto);\n  }\n}",
+    "trans_dreamy": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvec2 offset(float progress, float x, float theta) {\n    float phase = progress*progress + progress + theta;\n    float shifty = 0.03*progress*cos(10.0*(progress+x));\n    return vec2(0, shifty);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(texture2D(from, p + offset(progress, p.x, 0.0)), texture2D(to, p + offset(1.0-progress, p.x, 3.14)), progress);\n}",
+    "trans_fadeColorBlack": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst vec3 color = vec3(0.0, 0.0, 0.0);\nconst float colorPhase = 0.4;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(\n        mix(vec4(color, 1.0), texture2D(from, p), smoothstep(1.0-colorPhase, 0.0, progress)),\n        mix(vec4(color, 1.0), texture2D(to,   p), smoothstep(    colorPhase, 1.0, progress)),\n        progress);\n    gl_FragColor.a = mix(texture2D(from, p).a, texture2D(to, p).a, progress);\n}",
+    "trans_fadeGrayscale": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float grayPhase = 0.3;\nvec3 grayscale (vec3 color) {\n    return vec3(0.2126*color.r + 0.7152*color.g + 0.0722*color.b);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fc = texture2D(from, p);\n    vec4 tc = texture2D(to, p);\n    gl_FragColor = mix(\n        mix(vec4(grayscale(fc.rgb), 1.0), texture2D(from, p), smoothstep(1.0-grayPhase, 0.0, progress)),\n        mix(vec4(grayscale(tc.rgb), 1.0), texture2D(to,   p), smoothstep(    grayPhase, 1.0, progress)),\n        progress);\n    gl_FragColor.a = mix(fc.a, tc.a, progress);\n}",
+    "trans_finalGaussianNoise": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nfloat Rand(vec2 v) {\n  return fract(sin(dot(v.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\n\nfloat Gaussian(float p, float center, float c) {\n  return 0.75 * exp(- pow((p - center) / c, 2.));\n}\n\nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  float c = cos(Gaussian(progress * (1. + Gaussian(progress * Rand(p), 0.5, 0.5)), 0.5, 0.25));\n  vec2 d = p * c;\n  \n  gl_FragColor = mix(texture2D(from, d), texture2D(to, d), progress);\n}",
+    "trans_flash": "#ifdef GL_ES\nprecision highp float;\n#endif\n \n// General parameters\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\n \nfloat flashPhase = 0.3; // if 0.0, the image directly turn grayscale, if 0.9, the grayscale transition phase is very important\nfloat flashIntensity = 3.0;\nfloat flashZoomEffect = 0.5;\n \nconst vec3 flashColor = vec3(1.0, 0.8, 0.3);\nconst float flashVelocity = 3.0;\n \nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  vec4 fc = texture2D(from, p);\n  vec4 tc = texture2D(to, p);\n  float intensity = mix(1.0, 2.0*distance(p, vec2(0.5, 0.5)), flashZoomEffect) * flashIntensity * pow(smoothstep(flashPhase, 0.0, distance(0.5, progress)), flashVelocity);\n  vec4 c = mix(texture2D(from, p), texture2D(to, p), smoothstep(0.5*(1.0-flashPhase), 0.5*(1.0+flashPhase), progress));\n  c += intensity * vec4(flashColor, 1.0);\n  gl_FragColor = c;\n}",
+    "trans_flyEye": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float size = 0.04;\nconst float zoom = 30.0;\nconst float colorSeparation = 0.3;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float inv = 1. - progress;\n    vec2 disp = size*vec2(cos(zoom*p.x), sin(zoom*p.y));\n    vec4 texTo = texture2D(to, p + inv*disp);\n    vec4 texFrom = vec4(\n        texture2D(from, p + progress*disp*(1.0 - colorSeparation)).r,\n        texture2D(from, p + progress*disp).g,\n        texture2D(from, p + progress*disp*(1.0 + colorSeparation)).b,\n        texture2D(from, p + progress*disp).a);\n    gl_FragColor = texTo*progress + texFrom*inv;\n}",
+    "trans_fold": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  vec4 a = texture2D(from, (p - vec2(progress, 0.0)) / vec2(1.0-progress, 1.0));\n  vec4 b = texture2D(to, p / vec2(progress, 1.0));\n  gl_FragColor = mix(a, b, step(p.x, progress));\n}",
+    "trans_glitchDisplace": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nmediump float random(vec2 co)\n{\n    mediump float a = 12.9898;\n    mediump float b = 78.233;\n    mediump float c = 43758.5453;\n    mediump float dt= dot(co.xy ,vec2(a,b));\n    mediump float sn= mod(dt,3.14);\n    return fract(sin(sn) * c);\n}\nfloat voronoi( in vec2 x ) {\n    vec2 p = floor( x );\n    vec2 f = fract( x );\n    float res = 8.0;\n    for( float j=-1.; j<=1.; j++ )\n    for( float i=-1.; i<=1.; i++ ) {\n        vec2  b = vec2( i, j );\n        vec2  r = b - f + random( p + b );\n        float d = dot( r, r );\n        res = min( res, d );\n    }\n    return sqrt( res );\n}\nvec2 displace(vec4 tex, vec2 texCoord, float dotDepth, float textureDepth, float strength) {\n    float b = voronoi(.003 * texCoord + 2.0);\n    float g = voronoi(0.2 * texCoord);\n    float r = voronoi(texCoord - 1.0);\n    vec4 dt = tex * 1.0;\n    vec4 dis = dt * dotDepth + 1.0 - tex * textureDepth;\n    dis.x = dis.x - 1.0 + textureDepth*dotDepth;\n    dis.y = dis.y - 1.0 + textureDepth*dotDepth;\n    dis.x *= strength;\n    dis.y *= strength;\n    vec2 res_uv = texCoord ;\n    res_uv.x = res_uv.x + dis.x - 0.0;\n    res_uv.y = res_uv.y + dis.y;\n    return res_uv;\n}\nfloat ease1(float t) {\n    return t == 0.0 || t == 1.0\n        ? t\n        : t < 0.5\n        ? +0.5 * pow(2.0, (20.0 * t) - 10.0)\n        : -0.5 * pow(2.0, 10.0 - (t * 20.0)) + 1.0;\n}\nfloat ease2(float t) {\n    return t == 1.0 ? t : 1.0 - pow(2.0, -10.0 * t);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 color1 = texture2D(from, p);\n    vec4 color2 = texture2D(to, p);\n    vec2 disp = displace(color1, p, 0.33, 0.7, 1.0-ease1(progress));\n    vec2 disp2 = displace(color2, p, 0.33, 0.5, ease2(progress));\n    vec4 dColor1 = texture2D(to, disp);\n    vec4 dColor2 = texture2D(from, disp2);\n    float val = ease1(progress);\n    vec3 gray = vec3(dot(min(dColor2, dColor1).rgb, vec3(0.299, 0.587, 0.114)));\n    dColor2 = vec4(gray, 1.0);\n    dColor2 *= 2.0;\n    color1 = mix(color1, dColor2, smoothstep(0.0, 0.5, progress));\n    color2 = mix(color2, dColor1, smoothstep(1.0, 0.5, progress));\n    gl_FragColor = mix(color1, color2, val);\n}",
+    "trans_glitchMemories": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nvoid glitch_memories(sampler2D pic) {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  vec2 block = floor(gl_FragCoord.xy / vec2(16));\n  vec2 uv_noise = block / vec2(64);\n  uv_noise += floor(vec2(progress) * vec2(1200.0, 3500.0)) / vec2(64);\n  \n  float block_thresh = pow(fract(progress * 1200.0), 2.0) * 0.2;\n  float line_thresh = pow(fract(progress * 2200.0), 3.0) * 0.7;\n  vec2 red = p, green = p, blue = p, o = p;\n  vec2 dist = (fract(uv_noise) - 0.5) * 0.3;\n  red += dist * 0.1;\n  green += dist * 0.2;\n  blue += dist * 0.125;\n  \n  gl_FragColor.r = texture2D(pic, red).r;\n  gl_FragColor.g = texture2D(pic, green).g;\n  gl_FragColor.b = texture2D(pic, blue).b;\n  gl_FragColor.a = 1.0;\n\n}\n\nvoid main(void)\n{\n  float smoothed = smoothstep(0., 1., progress);\n  if( ( smoothed < 0.4 && smoothed > 0.1) ) {\n      glitch_memories(from);\n  } else if ((smoothed > 0.6 && smoothed < 0.9) ) {\n      glitch_memories(to);\n  } else {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), progress);\n  }\n}",
+    "trans_kaleidoScope": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 q = p;\n    float t = pow(progress, 2.0)*1.0;\n    p = p -0.5;\n    for (int i = 0; i < 7; i++) {\n        p = vec2(sin(t)*p.x + cos(t)*p.y, sin(t)*p.y - cos(t)*p.x);\n        t += 2.0;\n        p = abs(mod(p, 2.0) - 1.0);\n    }\n    abs(mod(p, 1.0));\n    gl_FragColor = mix(\n        mix(texture2D(from, q), texture2D(to, q), progress),\n        mix(texture2D(from, p), texture2D(to, p), progress), 1.0 - 2.0*abs(progress - 0.5));\n}",
+    "trans_linear": "#ifdef GL_ES\r\n  precision mediump float;\r\n#endif\r\n\r\nuniform sampler2D from, to;\r\nuniform float progress;\r\nuniform vec2 resolution;\r\n\r\nvoid main() {\r\n  vec2 p = gl_FragCoord.xy / resolution.xy;\r\n  gl_FragColor = mix(texture2D(from, p), texture2D(to, p), progress);\r\n}",
+    "trans_linearBlur": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float intensity = 0.1;\nconst int PASSES = 8;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 c1 = vec4(0.0), c2 = vec4(0.0);\n    float disp = intensity*(0.5-distance(0.5, progress));\n    for (int xi=0; xi<PASSES; ++xi) {\n        float x = float(xi) / float(PASSES) - 0.5;\n        for (int yi=0; yi<PASSES; ++yi) {\n            float y = float(yi) / float(PASSES) - 0.5;\n            vec2 v = vec2(x,y);\n            float d = disp;\n            c1 += texture2D(from, p + d*v);\n            c2 += texture2D(to, p + d*v);\n        }\n    }\n    c1 /= float(PASSES*PASSES);\n    c2 /= float(PASSES*PASSES);\n    gl_FragColor = mix(c1, c2, progress);\n}",
+    "trans_luma": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nuniform sampler2D lumaTex;\nbool invertLuma = true;\nfloat softness = 0.25;\n\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n\n    float luma = texture2D(lumaTex, p).x;\n    if (invertLuma)\n        luma = 1.0 - luma;\n    vec4 fromColor = texture2D(from, p);\n    vec4 toColor = texture2D(to, p);\n    float time = mix(0.0, 1.0 + softness, progress);\n    if (luma <= time - softness)\n        gl_FragColor = toColor;\n    else if (luma >= time)\n        gl_FragColor = fromColor;\n    else {\n        float alpha = (time - luma) / softness;\n        gl_FragColor = mix(fromColor, toColor, alpha);\n    }\n}",
+    "trans_morph": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float strength=0.1;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 ca = texture2D(from, p);\n    vec4 cb = texture2D(to, p);\n    vec2 oa = (((ca.rg+ca.b)*0.5)*2.0-1.0);\n    vec2 ob = (((cb.rg+cb.b)*0.5)*2.0-1.0);\n    vec2 oc = mix(oa,ob,0.5)*strength;\n    float w0 = progress;\n    float w1 = 1.0-w0;\n    gl_FragColor = mix(texture2D(from, p+oc*w0), texture2D(to, p-oc*w1), progress);\n}",
+    "trans_pageCurl": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nconst float MIN_AMOUNT = -0.16;\nconst float MAX_AMOUNT = 1.3;\nfloat amount = progress * (MAX_AMOUNT - MIN_AMOUNT) + MIN_AMOUNT;\n\nconst float PI = 3.141592653589793;\n\nconst float scale = 512.0;\nconst float sharpness = 3.0;\n\nfloat cylinderCenter = amount;\nfloat cylinderAngle = 2.0 * PI * amount;\n\nconst float cylinderRadius = 1.0 / PI / 2.0;\n\nvec3 hitPoint(float hitAngle, float yc, vec3 point, mat3 rrotation)\n{\n    float hitPoint = hitAngle / (2.0 * PI);\n    point.y = hitPoint;\n    return rrotation * point;\n}\n\nvec4 antiAlias(vec4 color1, vec4 color2, float distanc)\n{\n    distanc *= scale;\n    if (distanc < 0.0) return color2;\n    if (distanc > 2.0) return color1;\n    float dd = pow(1.0 - distanc / 2.0, sharpness);\n    return ((color2 - color1) * dd) + color1;\n}\n\nfloat distanceToEdge(vec3 point)\n{\n    float dx = abs(point.x > 0.5 ? 1.0 - point.x : point.x);\n    float dy = abs(point.y > 0.5 ? 1.0 - point.y : point.y);\n    if (point.x < 0.0) dx = -point.x;\n    if (point.x > 1.0) dx = point.x - 1.0;\n    if (point.y < 0.0) dy = -point.y;\n    if (point.y > 1.0) dy = point.y - 1.0;\n    if ((point.x < 0.0 || point.x > 1.0) && (point.y < 0.0 || point.y > 1.0)) return sqrt(dx * dx + dy * dy);\n    return min(dx, dy);\n}\n\nvec4 seeThrough(float yc, vec2 p, mat3 rotation, mat3 rrotation)\n{\n    float hitAngle = PI - (acos(yc / cylinderRadius) - cylinderAngle);\n    vec3 point = hitPoint(hitAngle, yc, rotation * vec3(p, 1.0), rrotation);\n    if (yc <= 0.0 && (point.x < 0.0 || point.y < 0.0 || point.x > 1.0 || point.y > 1.0))\n    {\n      vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n        return texture2D(to, texCoord);\n    }\n\n    if (yc > 0.0) return texture2D(from, p);\n\n    vec4 color = texture2D(from, point.xy);\n    vec4 tcolor = vec4(0.0);\n\n    return antiAlias(color, tcolor, distanceToEdge(point));\n}\n\nvec4 seeThroughWithShadow(float yc, vec2 p, vec3 point, mat3 rotation, mat3 rrotation)\n{\n    float shadow = distanceToEdge(point) * 30.0;\n    shadow = (1.0 - shadow) / 3.0;\n\n    if (shadow < 0.0) shadow = 0.0; else shadow *= amount;\n\n    vec4 shadowColor = seeThrough(yc, p, rotation, rrotation);\n    shadowColor.r -= shadow;\n    shadowColor.g -= shadow;\n    shadowColor.b -= shadow;\n\n    return shadowColor;\n}\n\nvec4 backside(float yc, vec3 point)\n{\n    vec4 color = texture2D(from, point.xy);\n    float gray = (color.r + color.b + color.g) / 15.0;\n    gray += (8.0 / 10.0) * (pow(1.0 - abs(yc / cylinderRadius), 2.0 / 10.0) / 2.0 + (5.0 / 10.0));\n    color.rgb = vec3(gray);\n    return color;\n}\n\nvec4 behindSurface(float yc, vec3 point, mat3 rrotation)\n{\n    float shado = (1.0 - ((-cylinderRadius - yc) / amount * 7.0)) / 6.0;\n    shado *= 1.0 - abs(point.x - 0.5);\n\n    yc = (-cylinderRadius - cylinderRadius - yc);\n\n    float hitAngle = (acos(yc / cylinderRadius) + cylinderAngle) - PI;\n    point = hitPoint(hitAngle, yc, point, rrotation);\n\n    if (yc < 0.0 && point.x >= 0.0 && point.y >= 0.0 && point.x <= 1.0 && point.y <= 1.0 && (hitAngle < PI || amount > 0.5))\n    {\n        shado = 1.0 - (sqrt(pow(point.x - 0.5, 2.0) + pow(point.y - 0.5, 2.0)) / (71.0 / 100.0));\n        shado *= pow(-yc / cylinderRadius, 3.0);\n        shado *= 0.5;\n    }\n    else\n    {\n        shado = 0.0;\n    }\n    \n    vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n\n    return vec4(texture2D(to, texCoord).rgb - shado, 1.0);\n}\n\nvoid main()\n{\n  vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n  \n  const float angle = 30.0 * PI / 180.0;\n    float c = cos(-angle);\n    float s = sin(-angle);\n\n    mat3 rotation = mat3( c, s, 0,\n                                -s, c, 0,\n                                0.12, 0.258, 1\n                                );\n    c = cos(angle);\n    s = sin(angle);\n\n    mat3 rrotation = mat3(  c, s, 0,\n                                    -s, c, 0,\n                                    0.15, -0.5, 1\n                                );\n\n    vec3 point = rotation * vec3(texCoord, 1.0);\n\n    float yc = point.y - cylinderCenter;\n\n    if (yc < -cylinderRadius)\n    {\n        // Behind surface\n        gl_FragColor = behindSurface(yc, point, rrotation);\n        return;\n    }\n\n    if (yc > cylinderRadius)\n    {\n        // Flat surface\n        gl_FragColor = texture2D(from, texCoord);\n        return;\n    }\n\n    float hitAngle = (acos(yc / cylinderRadius) + cylinderAngle) - PI;\n\n    float hitAngleMod = mod(hitAngle, 2.0 * PI);\n    if ((hitAngleMod > PI && amount < 0.5) || (hitAngleMod > PI/2.0 && amount < 0.0))\n    {\n        gl_FragColor = seeThrough(yc, texCoord, rotation, rrotation);\n        return;\n    }\n\n    point = hitPoint(hitAngle, yc, point, rrotation);\n\n    if (point.x < 0.0 || point.y < 0.0 || point.x > 1.0 || point.y > 1.0)\n    {\n        gl_FragColor = seeThroughWithShadow(yc, texCoord, point, rotation, rrotation);\n        return;\n    }\n\n    vec4 color = backside(yc, point);\n\n    vec4 otherColor;\n    if (yc < 0.0)\n    {\n        float shado = 1.0 - (sqrt(pow(point.x - 0.5, 2.0) + pow(point.y - 0.5, 2.0)) / 0.71);\n        shado *= pow(-yc / cylinderRadius, 3.0);\n        shado *= 0.5;\n        otherColor = vec4(0.0, 0.0, 0.0, shado);\n    }\n    else\n    {\n        otherColor = texture2D(from, texCoord);\n    }\n\n    color = antiAlias(color, otherColor, cylinderRadius - abs(yc));\n\n    vec4 cl = seeThroughWithShadow(yc, texCoord, point, rotation, rrotation);\n    float dist = distanceToEdge(point);\n\n    gl_FragColor = antiAlias(color, cl, dist);\n}",
+    "trans_pinWheel": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nvoid main() {\n  \n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  \n  float circPos = atan(p.y - 0.5, p.x - 0.5) + progress;\n  float modPos = mod(circPos, 3.1415 / 4.);\n  float signed = sign(progress - modPos);\n  float smoothed = smoothstep(0., 1., signed);\n  \n  if (smoothed > 0.5){\n    gl_FragColor = texture2D(to, p);\n  } else {\n    gl_FragColor = texture2D(from, p);\n  }\n  \n}\n",
+    "trans_pixelize": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst ivec2 size = ivec2(10.0, 10.0);\nconst float smoothness = 0.5;\nfloat rand (vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float r = rand(floor(vec2(size) * p));\n    float m = smoothstep(0.0, -smoothness, r - (progress * (1.0 + smoothness)));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n}",
+    "trans_polkaDots": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float dots = 5.0;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = progress;\n    bool nextImage = distance(fract(p * dots), vec2(0.5, 0.5)) < x;\n    if(nextImage)\n        gl_FragColor = texture2D(to, p);\n    else\n        gl_FragColor = texture2D(from, p);\n}",
+    "trans_polkaDotsCurtain": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst float SQRT_2 = 1.414213562373;\nconst float dots = 20.0;\nconst vec2 center = vec2(1.0, 1.0);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float x = progress /2.0;\n    bool nextImage = distance(fract(p * dots), vec2(0.5, 0.5)) < (2.0 * x / distance(p, center));\n    if(nextImage) gl_FragColor = texture2D(to, p);\n    else gl_FragColor = texture2D(from, p);\n}",
+    "trans_radial": "#ifdef GL_ES\nprecision mediump float;\n#endif\n#define PI 3.141592653589\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 rp = p*2.-1.;\n    float a = atan(rp.y, rp.x);\n    float pa = progress*PI*2.5-PI*1.25;\n    vec4 fromc = texture2D(from, p);\n    vec4 toc = texture2D(to, p);\n    if(a>pa) {\n        gl_FragColor = mix(toc, fromc, smoothstep(0., 1., (a-pa)));\n    } else {\n        gl_FragColor = toc;\n    }\n}",
+    "trans_randomSquares": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nfloat rand(vec2 co){\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\nvoid main() {\n    float revProgress = (1.0 - progress);\n    float distFromEdges = min(progress, revProgress);\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec4 fromColor = texture2D(from, p);\n    vec4 toColor = texture2D(to, p);\n    float squareSize = 20.0;\n    float flickerSpeed = 60.0;\n    vec2 seed = floor(gl_FragCoord.xy / squareSize) * floor(distFromEdges * flickerSpeed);\n    gl_FragColor = mix(fromColor, toColor, progress) + rand(seed) * distFromEdges * 0.5;\n}",
+    "trans_ripple": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float amplitude = 100.0;\nconst float speed = 50.0;\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 dir = p - vec2(.5);\n    float dist = length(dir);\n    vec2 offset = dir * (sin(progress * dist * amplitude - progress * speed) + .5) / 30.;\n    gl_FragColor = mix(texture2D(from, p + offset), texture2D(to, p), smoothstep(0.2, 1.0, progress));\n}",
+    "trans_simpleFlip": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  vec2 q = p;\n  p.x = (p.x - 0.5)/abs(progress - 0.5)*0.5 + 0.5;\n  vec4 a = texture2D(from, p);\n  vec4 b = texture2D(to, p);\n  gl_FragColor = vec4(mix(a, b, step(0.5, progress)).rgb * step(abs(q.x - 0.5), abs(progress - 0.5)), 1.0);\n}",
+    "trans_slide": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nfloat translateX = 1.0;\nfloat translateY = 0.0;\n\nvoid main() {\n    vec2 texCoord = gl_FragCoord.xy / resolution.xy;\n    float x = progress * translateX;\n    float y = progress * translateY;\n\n    if (x >= 0.0 && y >= 0.0) {\n        if (texCoord.x >= x && texCoord.y >= y) {\n            gl_FragColor = texture2D(from, texCoord - vec2(x, y));\n        }\n        else {\n            vec2 uv;\n            if (x > 0.0)\n                uv = vec2(x - 1.0, y);\n            else if (y > 0.0)\n                uv = vec2(x, y - 1.0);\n            gl_FragColor = texture2D(to, texCoord - uv);\n        }\n    }\n    else if (x <= 0.0 && y <= 0.0) {\n        if (texCoord.x <= (1.0 + x) && texCoord.y <= (1.0 + y))\n            gl_FragColor = texture2D(from, texCoord - vec2(x, y));\n        else {\n            vec2 uv;\n            if (x < 0.0)\n                uv = vec2(x + 1.0, y);\n            else if (y < 0.0)\n                uv = vec2(x, y + 1.0);\n            gl_FragColor = texture2D(to, texCoord - uv);\n        }\n    }\n    else\n        gl_FragColor = vec4(0.0);\n}",
+    "trans_squareSwipe": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\nconst ivec2 squares = ivec2(10.0, 10.0);\nconst vec2 direction = vec2(1.0, -0.5);\nconst float smoothness = 1.6;\nconst vec2 center = vec2(0.5, 0.5);\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    vec2 v = normalize(direction);\n    if (v != vec2(0.0))\n        v /= abs(v.x)+abs(v.y);\n    float d = v.x * center.x + v.y * center.y;\n    float offset = smoothness;\n    float pr = smoothstep(-offset, 0.0, v.x * p.x + v.y * p.y - (d-0.5+progress*(1.+offset)));\n    vec2 squarep = fract(p*vec2(squares));\n    vec2 squaremin = vec2(pr/2.0);\n    vec2 squaremax = vec2(1.0 - pr/2.0);\n    float a = all(lessThan(squaremin, squarep)) && all(lessThan(squarep, squaremax)) ? 1.0 : 0.0;\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), a);\n}",
+    "trans_squeeze": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float colorSeparation = 0.02;\nfloat progressY (float y) {\n    return 0.5 + (y-0.5) / (1.0-progress);\n}\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float y = progressY(p.y);\n    if (y < 0.0 || y > 1.0) {\n        gl_FragColor = texture2D(to, p);\n    }\n    else {\n        vec2 fp = vec2(p.x, y) + progress*vec2(0.0, colorSeparation);\n        vec4 c = vec4(\n            texture2D(from, fp).r,\n            texture2D(from, fp).g,\n            texture2D(from, fp).b,\n            texture2D(from, fp).a\n            );\n        gl_FragColor = c;\n        if (c.a == 0.0) {gl_FragColor = texture2D(to, p);}\n    }\n}",
+    "trans_starWipe": "#ifdef GL_ES\nprecision mediump float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\nvec2 circlePoint( float ang )\n{\n  ang += 6.28318 * 0.15;\n  return vec2( cos(ang), sin(ang) );  \n}\n\nfloat cross2d( vec2 a, vec2 b )\n{\n  return ( a.x * b.y - a.y * b.x );\n}\n\n// quickly knocked together with some math from http://www.pixeleuphoria.com/node/30\nfloat star( vec2 p, float size )\n{\n  if( size <= 0.0 )\n  {\n    return 0.0;\n  }\n  p /= size;\n  \n  vec2 p0 = circlePoint( 0.0 );\n  vec2 p1 = circlePoint( 6.28318 * 1.0 / 5.0 );\n  vec2 p2 = circlePoint( 6.28318 * 2.0 / 5.0 );\n  vec2 p3 = circlePoint( 6.28318 * 3.0 / 5.0 );\n  vec2 p4 = circlePoint( 6.28318 * 4.0 / 5.0 );\n  \n  // are we on this side of the line\n  float s0 = ( cross2d( p1 - p0, p - p0 ) );\n  float s1 = ( cross2d( p2 - p1, p - p1 ) );\n  float s2 = ( cross2d( p3 - p2, p - p2 ) );\n  float s3 = ( cross2d( p4 - p3, p - p3 ) );\n  float s4 = ( cross2d( p0 - p4, p - p4 ) );\n  \n  // some trial and error math to get the star shape.  I'm sure there's some elegance I'm missing.\n  float s5 = min( min( min( s0, s1 ), min( s2, s3 ) ), s4 );\n  float s = max( 1.0 - sign( s0 * s1 * s2 * s3 * s4 ) + sign(s5), 0.0 );\n  s = sign( 2.6 - length(p) ) * s;\n  \n  return max( s, 0.0 );\n}\n\nvoid main() \n{\n  vec2 p = ( gl_FragCoord.xy / resolution.xy );\n  vec2 o = p * 2.0 - 1.0;\n  \n  float t = progress * 1.4;\n  \n  float c1 = star( o, t );\n  float c2 = star( o, t - 0.1 );\n  \n  float border = max( c1 - c2, 0.0 );\n  \n  gl_FragColor = mix(texture2D(from, p), texture2D(to, p), c1) + vec4( border, border, border, 0.0 );\n}",
+    "trans_swap": "#ifdef GL_ES\nprecision mediump float;\n#endif\n \n// General parameters\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\n \nfloat reflection = 0.4;\nfloat perspective = 0.2;\nfloat depth = 3.0;\n \nconst vec4 black = vec4(0.0, 0.0, 0.0, 1.0);\nconst vec2 boundMin = vec2(0.0, 0.0);\nconst vec2 boundMax = vec2(1.0, 1.0);\n \nbool inBounds (vec2 p) {\n  return all(lessThan(boundMin, p)) && all(lessThan(p, boundMax));\n}\n \nvec2 project (vec2 p) {\n  return p * vec2(1.0, -1.2) + vec2(0.0, -0.02);\n}\n \nvec4 bgColor (vec2 p, vec2 pfr, vec2 pto) {\n  vec4 c = black;\n  pfr = project(pfr);\n  if (inBounds(pfr)) {\n    c += mix(black, texture2D(from, pfr), reflection * mix(1.0, 0.0, pfr.y));\n  }\n  pto = project(pto);\n  if (inBounds(pto)) {\n    c += mix(black, texture2D(to, pto), reflection * mix(1.0, 0.0, pto.y));\n  }\n  return c;\n}\n \nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n \n  vec2 pfr, pto = vec2(-1.);\n \n  float size = mix(1.0, depth, progress);\n  float persp = perspective * progress;\n  pfr = (p + vec2(-0.0, -0.5)) * vec2(size/(1.0-perspective*progress), size/(1.0-size*persp*p.x)) + vec2(0.0, 0.5);\n \n  size = mix(1.0, depth, 1.-progress);\n  persp = perspective * (1.-progress);\n  pto = (p + vec2(-1.0, -0.5)) * vec2(size/(1.0-perspective*(1.0-progress)), size/(1.0-size*persp*(0.5-p.x))) + vec2(1.0, 0.5);\n \n  bool fromOver = progress < 0.5;\n \n  if (fromOver) {\n    if (inBounds(pfr)) {\n      gl_FragColor = texture2D(from, pfr);\n    }\n    else if (inBounds(pto)) {\n      gl_FragColor = texture2D(to, pto);\n    }\n    else {\n      gl_FragColor = bgColor(p, pfr, pto);\n    }\n  }\n  else {\n    if (inBounds(pto)) {\n      gl_FragColor = texture2D(to, pto);\n    }\n    else if (inBounds(pfr)) {\n      gl_FragColor = texture2D(from, pfr);\n    }\n    else {\n      gl_FragColor = bgColor(p, pfr, pto);\n    }\n  }\n}",
+    "trans_swirl": "#ifdef GL_ES\nprecision highp float;\n#endif\nuniform sampler2D from, to;\nuniform float progress;\nuniform vec2 resolution;\n\n/*\n  (C) Sergey Kosarevsky, 2014\n  \n  Available under the terms of MIT license\n  http://www.linderdaum.com\n*/\n\nvoid main(void)\n{\n    float Radius = 1.0;\n\n    float T = progress;\n\n    vec2 UV = gl_FragCoord.xy / resolution.xy;\n\n    UV -= vec2( 0.5, 0.5 );\n\n    float Dist = length(UV);\n\n    if ( Dist < Radius )\n    {\n        float Percent = (Radius - Dist) / Radius;\n        float A = ( T <= 0.5 ) ? mix( 0.0, 1.0, T/0.5 ) : mix( 1.0, 0.0, (T-0.5)/0.5 );\n        float Theta = Percent * Percent * A * 8.0 * 3.14159;\n        float S = sin( Theta );\n        float C = cos( Theta );\n        UV = vec2( dot(UV, vec2(C, -S)), dot(UV, vec2(S, C)) );\n    }\n    UV += vec2( 0.5, 0.5 );\n\n    vec4 C0 = texture2D( from, UV );\n    vec4 C1 = texture2D( to, UV );\n\n    gl_FragColor = mix( C0, C1, T );\n}\n",
+    "trans_undulatingBurnOut": "#ifdef GL_ES\n    precision mediump float;\n#endif\n\n#define M_PI 3.14159265358979323846\n\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\n \nuniform float smoothness;\nconst vec2 center = vec2(0.5, 0.5);\n\nfloat quadraticInOut(float t) {\n    float p = 2.0 * t * t;\n    return t < 0.5 ? p : -p + (4.0 * t) - 1.0;\n}\n\nfloat linearInterp(vec2 range, vec2 domain, float x) {\n    return mix(range.x, range.y, smoothstep(domain.x, domain.y, clamp(x, domain.x, domain.y)));\n}\n\nfloat getGradient(float r, float dist) {\n    float grad = smoothstep(-smoothness, 0.0, r - dist * (1.0 + smoothness)); //, 0.0, 1.0);\n    if (r - dist < 0.005 && r - dist > -0.005) {\n        return -1.0;\n    } else if (r - dist < 0.01 && r - dist > -0.005) {\n        return -2.0;\n    }\n    return grad;\n}\n\nfloat round(float a) {\n    return floor(a + 0.5);\n}\n\nfloat getWave(vec2 p){\n    vec2 _p = p - center;\n    float rads = atan(_p.y, _p.x);\n    float degs = degrees(rads) + 180.0;\n    vec2 range = vec2(0.0, M_PI * 30.0);\n    vec2 domain = vec2(0.0, 360.0);\n    \n    float ratio = (M_PI * 30.0) / 360.0;\n    degs = degs * ratio;\n    float x = progress;\n    float magnitude = mix(0.02, 0.09, smoothstep(0.0, 1.0, x));\n    float offset = mix(40.0, 30.0, smoothstep(0.0, 1.0, x));\n    float ease_degs = quadraticInOut(sin(degs));\n    \n    float deg_wave_pos = (ease_degs * magnitude) * sin(x * offset);\n    return x + deg_wave_pos;\n}\n\nvoid main() {\n  vec2 p = gl_FragCoord.xy / resolution.xy;\n  \n  if (progress == 0.0) {\n    gl_FragColor = texture2D(from, p);\n  } else if (progress == 1.0) {\n    gl_FragColor = texture2D(to, p);\n  } else {\n    float dist = distance(center, p);\n    float m = getGradient(getWave(p), dist);\n    if (m == -2.0) {\n      gl_FragColor = mix(texture2D(from, p), vec4(0.0, 0.0, 0.0, 1.0), 0.75);\n    } else {\n      gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);    \n    }\n  }\n}",
+    "trans_wind": "#ifdef GL_ES\n    precision mediump float;\n#endif\n\nuniform sampler2D from;\nuniform sampler2D to;\nuniform float progress;\nuniform vec2 resolution;\nconst float size = 0.2;\n\nfloat rand (vec2 co) {\n    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\n}\n\nvoid main() {\n    vec2 p = gl_FragCoord.xy / resolution.xy;\n    float r = rand(vec2(0, p.y));\n    float m = smoothstep(0.0, -size, p.x*(1.0-size) + size*r - (progress * (1.0 + size)));\n    gl_FragColor = mix(texture2D(from, p), texture2D(to, p), m);\n}"
 });});
-webvn.use(["webgl"], function (webgl) { webgl.vertexShader.create({
+webvn.use(function (webgl) { webgl.vertexShader.create({
     "drawImage": "attribute vec2 a_Position;\r\nuniform mat4 u_ModelMatrix;\r\nvarying vec2 v_TexCoord;\r\nuniform vec2 u_Resolution;\r\n\r\nvoid main() {\r\n    float w = 2.0 / u_Resolution.x;\r\n    float h = -2.0 / u_Resolution.y;\r\n    mat4 ViewMatrix = mat4(\r\n        w, 0, 0, 0,\r\n        0, h, 0, 0,\r\n        0, 0, 1.0, 1.0,\r\n        -1.0, 1.0, 0, 0\r\n    );\r\n\r\n    gl_Position = ViewMatrix * u_ModelMatrix * vec4(a_Position, 1.0, 1.0);\r\n    v_TexCoord = a_Position;\r\n}",
+    "filter": "precision mediump float;\r\nattribute vec2 a_Position;\r\nattribute vec2 a_Uv;\r\nvarying vec2 v_Uv;\r\nvoid main() {\r\n    v_Uv = a_Uv;\r\n    gl_Position = vec4(a_Position.x, -a_Position.y, 0.0, 1.0);\r\n}",
     "transition": "attribute vec2 a_Position;\r\n\r\nvoid main() {\r\n    gl_Position = vec4(2.0 * a_Position - 1.0, 0.0, 1.0);\r\n}"
 });});
-webvn.extend('webgl', ['class'], function (exports, kclass) {
+webvn.extend('webgl', function (exports, Class) {
     "use strict";
-
-    var Matrix4 = exports.Matrix4 = kclass.create({
+    var Matrix4 = exports.Matrix4 = Class.create({
 
         constructor: function (opt_src) {
             var i, s, d;
@@ -3904,7 +4182,7 @@ webvn.extend('webgl', ['class'], function (exports, kclass) {
 
     });
 
-    var Vector3 = exports.Vector3 = kclass.create({
+    var Vector3 = exports.Vector3 = Class.create({
 
         constructor: function (opt_src) {
             var v = new Float32Array(3);
@@ -3931,7 +4209,7 @@ webvn.extend('webgl', ['class'], function (exports, kclass) {
 
     });
 
-    var Vector4 = exports.Vector4 = kclass.create({
+    var Vector4 = exports.Vector4 = Class.create({
 
         constructor: function (opt_src) {
             var v = new Float32Array(4);
@@ -3944,14 +4222,13 @@ webvn.extend('webgl', ['class'], function (exports, kclass) {
     });
 
 });
-webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('webgl', function (exports, Class, util) {
     "use strict";
 
-    var Texture = exports.Texture = kclass.create({
+    var Texture = exports.Texture = Class.create({
 
         constructor: function Texture(gl) {
             this.gl = gl;
-            this.id = util.guid('texture');
             this.value = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, this.value);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -3995,7 +4272,7 @@ webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
         var texture;
         // Cache textures to improve performance.
         if (!gl.ttId) {
-            gl.ttId = util.guid('tt');
+            gl.ttId = util.uid('tt');
             textures[gl.ttId] = {};
         } else {
             texture = textures[gl.ttId][image.src];
@@ -4012,12 +4289,12 @@ webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
     };
 
 });
-webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('webgl', function (exports, Class, util) {
     "use strict";
 
     var createTexture = exports.createTexture;
 
-    var FrameBuffer = exports.FrameBuffer = kclass.create({
+    var FrameBuffer = exports.FrameBuffer = Class.create({
 
         constructor: function FrameBuffer(gl, view) {
             this.gl = gl;
@@ -4064,7 +4341,7 @@ webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
     exports.createFrameBuffer = function (gl, view, num) {
         var frameBuffer;
         if (!gl.fbId) {
-            gl.fbId = util.guid('fb');
+            gl.fbId = util.uid('fb');
             frameBuffers[gl.fbId] = [];
         } else {
             frameBuffer = frameBuffers[gl.fbId][num];
@@ -4080,14 +4357,14 @@ webvn.extend('webgl', ['class', 'util'], function (exports, kclass, util) {
     };
 
 });
-webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, util) {
+webvn.extend('webgl', function (exports, Class, log, util, config) {
 
     var Shader = exports.Shader,
         createShader = exports.createShader,
         createTexture = exports.createTexture,
         Matrix4 = exports.Matrix4;
 
-    var Program = exports.Program = kclass.create({
+    var Program = exports.Program = Class.create({
 
         constructor: function (gl) {
             this.gl = gl;
@@ -4148,6 +4425,9 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
 
             gl.linkProgram(program);
 
+            if (config.build === 'release') {
+                return this;
+            }
             var linkStatus = gl.getProgramParameter(program, gl.LINK_STATUS);
             if (!linkStatus) {
                 var lastError = gl.getProgramInfoLog(program);
@@ -4161,7 +4441,11 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
         use: function () {
             var gl = this.gl;
 
+            if (gl.curProgram === this.value) {
+                return this;
+            }
             gl.useProgram(this.value);
+            gl.curProgram = this.value;
 
             return this;
         },
@@ -4199,7 +4483,7 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
             this.positionBuffer = gl.createBuffer();
         },
 
-        render: function (image, x, y, alpha) {
+        render: function (image, x, y, alpha, scaleX, scaleY) {
             var gl = this.gl;
 
             var u_Resolution = this.u_Resolution;
@@ -4217,7 +4501,7 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
 
             var modelMatrix = new Matrix4();
             modelMatrix.translate(x, y, 0);
-            modelMatrix.scale(image.width, image.height, 1);
+            modelMatrix.scale(image.width * scaleX, image.height * scaleY, 1);
             var u_ModelMatrix = this.u_ModelMatrix;
             gl.uniformMatrix4fv(u_ModelMatrix, false, modelMatrix.elements);
 
@@ -4248,7 +4532,7 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
             ]);
         },
 
-        attriblue: function (name) {
+        attribute: function (name) {
             var gl = this.gl;
 
             var program = this.value;
@@ -4278,9 +4562,9 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
                 return this;
             }
 
-            this.value = gl.createProgram();
+            programs[type] = this.value = gl.createProgram();
             var fragShader = createShader(gl, 'frag');
-            fragShader.source(type);
+            fragShader.source('trans_' + type);
             var vertexShader = createShader(gl, 'vertex');
             vertexShader.source('transition');
 
@@ -4288,12 +4572,16 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
             this.attribute('a_Position').uniform('resolution').uniform('progress').
                 uniform('from').uniform('to');
 
+            if (type === 'luma') {
+                this.uniform('lumaTex');
+            }
+
             this.positionBuffer = gl.createBuffer();
 
             return this;
         },
 
-        render: function (texture1, texture2, progress, type) {
+        render: function (texture1, texture2, progress, type, lumaImage) {
             var gl = this.gl;
 
             this.getProgram(type).use();
@@ -4307,34 +4595,312 @@ webvn.extend('webgl', ['class', 'log', 'util'], function (exports, kclass, log, 
             gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 8, 0);
             gl.enableVertexAttribArray(a_Position);
 
-            var resolution = program.resolution;
-            gl.uniform2f(resolution, this.width, this.height);
+            gl.uniform2f(program.resolution, this.width, this.height);
 
-            var progressLocation = program.progress;
-            gl.uniform1f(progressLocation, progress);
+            gl.uniform1f(program.progress, progress);
 
             texture1.active(0);
-            var from = program.from;
-            gl.uniform1i(from, 0);
+            gl.uniform1i(program.from, 0);
 
             texture2.active(1);
-            var to = program.to;
-            gl.uniform1i(to, 1);
+            gl.uniform1i(program.to, 1);
+
+            if (type === 'luma') {
+                var lumaTexture = createTexture(gl, lumaImage);
+                lumaTexture.active(2);
+                gl.uniform1i(program.lumaTex, 2);
+            }
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
 
     });
 
-});
-webvn.extend('webgl', ['class'], function (exports, kclass) {
-    "use strict";
+    exports.FilterProgram = Program.extend({
 
+        constructor: function (gl, view) {
+            this.gl = gl;
+            this.values = {};
+            this.width = view.width;
+            this.height = view.height;
+            this.positionData = new Float32Array([
+                -1, -1, 0, 1,
+                1, -1, 1, 1,
+                -1, 1, 0, 0,
+                -1, 1, 0, 0,
+                1, -1, 1, 1,
+                1, 1, 1, 0
+            ]);
+        },
+
+        attribute: function (name) {
+            var gl = this.gl;
+
+            var program = this.value;
+
+            this.value[name] = gl.getAttribLocation(program, name);
+
+            return this;
+        },
+
+        uniform: function (name) {
+            var gl = this.gl;
+
+            var program = this.value;
+
+            this.value[name] = gl.getUniformLocation(program, name);
+
+            return this;
+        },
+
+        getProgram: function (type) {
+            var gl = this.gl;
+
+            var programs = this.values;
+
+            if (programs[type]) {
+                this.value = programs[type];
+                return this;
+            }
+
+            programs[type] = this.value = gl.createProgram();
+            var fragShader = createShader(gl, 'frag');
+            fragShader.source(type);
+            var vertexShader = createShader(gl, 'vertex');
+            vertexShader.source('filter');
+
+            this.shader(fragShader).shader(vertexShader).link().use();
+            this.attribute('a_Position').attribute('a_Uv').uniform('m');
+
+            if (type === 'convolution') {
+                this.uniform('u_Px');
+            }
+
+            this.positionBuffer = gl.createBuffer();
+
+            return this;
+        },
+
+        render: function (texture, type, value) {
+            var gl = this.gl;
+
+            this[type](value);
+
+            var program = this.value;
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, this.positionData, gl.STATIC_DRAW);
+
+            var a_Position = program.a_Position;
+            gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 16, 0);
+            gl.enableVertexAttribArray(a_Position);
+
+            var a_Uv = program.a_Uv;
+            gl.vertexAttribPointer(a_Uv, 2, gl.FLOAT, false, 16, 8);
+            gl.enableVertexAttribArray(a_Uv);
+
+            texture.active();
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        },
+
+        colorMatrix: function (matrix) {
+            var gl = this.gl,
+                m = new Float32Array(matrix);
+
+            m[4] /= 255;
+            m[9] /= 255;
+            m[14] /= 255;
+            m[19] /= 255;
+
+            this.getProgram('colorMatrix').use();
+
+            var program = this.value;
+
+            gl.uniform1fv(program.m, m);
+        },
+
+        brightness: function (brightness) {
+            var b = (brightness || 0) + 1;
+            this.colorMatrix([
+                b, 0, 0, 0, 0,
+                0, b, 0, 0, 0,
+                0, 0, b, 0, 0,
+                0, 0, 0, 1, 0
+            ]);
+        },
+
+        saturation: function(amount) {
+            var x = (amount || 0) * 2 / 3 + 1;
+            var y = ((x - 1) * -0.5);
+            this.colorMatrix([
+                x, y, y, 0, 0,
+                y, x, y, 0, 0,
+                y, y, x, 0, 0,
+                0, 0, 0, 1, 0
+            ]);
+        },
+
+        desaturate: function() {
+            this.saturation(-1);
+        },
+
+        contrast: function(amount) {
+            var v = (amount || 0) + 1;
+            var o = -128 * (v-1);
+
+            this.colorMatrix([
+                v, 0, 0, 0, o,
+                0, v, 0, 0, o,
+                0, 0, v, 0, o,
+                0, 0, 0, 1, 0
+            ]);
+        },
+
+        negative: function() {
+            this.contrast(-2);
+        },
+
+        hue: function(rotation) {
+            rotation = (rotation || 0)/180 * Math.PI;
+            var cos = Math.cos(rotation),
+                sin = Math.sin(rotation),
+                lumR = 0.213,
+                lumG = 0.715,
+                lumB = 0.072;
+
+            this.colorMatrix([
+                lumR+cos*(1-lumR)+sin*(-lumR),lumG+cos*(-lumG)+sin*(-lumG),lumB+cos*(-lumB)+sin*(1-lumB),0,0,
+                lumR+cos*(-lumR)+sin*(0.143),lumG+cos*(1-lumG)+sin*(0.140),lumB+cos*(-lumB)+sin*(-0.283),0,0,
+                lumR+cos*(-lumR)+sin*(-(1-lumR)),lumG+cos*(-lumG)+sin*(lumG),lumB+cos*(1-lumB)+sin*(lumB),0,0,
+                0, 0, 0, 1, 0
+            ]);
+        },
+
+        desaturateLuminance: function() {
+            this.colorMatrix([
+                0.2764723, 0.9297080, 0.0938197, 0, -37.1,
+                0.2764723, 0.9297080, 0.0938197, 0, -37.1,
+                0.2764723, 0.9297080, 0.0938197, 0, -37.1,
+                0, 0, 0, 1, 0
+            ]);
+        },
+
+        sepia: function() {
+            this.colorMatrix([
+                0.393, 0.7689999, 0.18899999, 0, 0,
+                0.349, 0.6859999, 0.16799999, 0, 0,
+                0.272, 0.5339999, 0.13099999, 0, 0,
+                0,0,0,1,0
+            ]);
+        },
+
+        brownie: function() {
+            this.colorMatrix([
+                0.5997023498159715,0.34553243048391263,-0.2708298674538042,0,47.43192855600873,
+                -0.037703249837783157,0.8609577587992641,0.15059552388459913,0,-36.96841498319127,
+                0.24113635128153335,-0.07441037908422492,0.44972182064877153,0,-7.562075277591283,
+                0,0,0,1,0
+            ]);
+        },
+
+        vintagePinhole: function() {
+            this.colorMatrix([
+                0.6279345635605994,0.3202183420819367,-0.03965408211312453,0,9.651285835294123,
+                0.02578397704808868,0.6441188644374771,0.03259127616149294,0,7.462829176470591,
+                0.0466055556782719,-0.0851232987247891,0.5241648018700465,0,5.159190588235296,
+                0,0,0,1,0
+            ]);
+        },
+
+        kodachrome: function() {
+            this.colorMatrix([
+                1.1285582396593525,-0.3967382283601348,-0.03992559172921793,0,63.72958762196502,
+                -0.16404339962244616,1.0835251566291304,-0.05498805115633132,0,24.732407896706203,
+                -0.16786010706155763,-0.5603416277695248,1.6014850761964943,0,35.62982807460946,
+                0,0,0,1,0
+            ]);
+        },
+
+        technicolor: function() {
+            this.colorMatrix([
+                1.9125277891456083,-0.8545344976951645,-0.09155508482755585,0,11.793603434377337,
+                -0.3087833385928097,1.7658908555458428,-0.10601743074722245,0,-70.35205161461398,
+                -0.231103377548616,-0.7501899197440212,1.847597816108189,0,30.950940869491138,
+                0,0,0,1,0
+            ]);
+        },
+
+        polaroid: function() {
+            this.colorMatrix([
+                1.438,-0.062,-0.062,0,0,
+                -0.122,1.378,-0.122,0,0,
+                -0.016,-0.016,1.483,0,0,
+                0,0,0,1,0
+            ]);
+        },
+
+        shiftToBGR: function() {
+            this.colorMatrix([
+                0,0,1,0,0,
+                0,1,0,0,0,
+                1,0,0,0,0,
+                0,0,0,1,0
+            ]);
+        },
+
+        convolution: function (matrix) {
+            var gl = this.gl,
+                m = new Float32Array(matrix),
+                pixelSizeX = 1 / this.width,
+                pixelSizeY = 1 / this.height;
+
+            this.getProgram('convolution').use();
+
+            var program = this.value;
+
+            gl.uniform1fv(program.m, m);
+            gl.uniform2f(program.u_Px, pixelSizeX, pixelSizeY);
+        },
+
+        detectEdges: function() {
+            this.convolution([
+                0, 1, 0,
+                1 -4, 1,
+                0, 1, 0
+            ]);
+        },
+
+
+        sharpen: function(amount) {
+            var a = amount || 1;
+            this.convolution([
+                0, -1*a, 0,
+                -1*a, 1 + 4*a, -1*a,
+                0, -1*a, 0
+            ]);
+        },
+
+        emboss: function(size) {
+            var s = size || 1;
+            this.convolution([
+                -2*s, -1*s, 0,
+                -1*s, 1, 1*s,
+                0, 1*s, 2*s
+            ]);
+        }
+
+    });
+
+});
+webvn.extend('webgl', function (exports, Class) {
+    "use strict";
     var DrawImageProgram = exports.DrawImageProgram,
         createFrameBuffer = exports.createFrameBuffer,
-        TransitionProgram = exports.TransitionProgram;
+        TransitionProgram = exports.TransitionProgram,
+        FilterProgram = exports.FilterProgram;
 
-    var WebGL2D = exports.WebGL2D = kclass.create({
+    var WebGL2D = exports.WebGL2D = Class.create({
 
         constructor: function WebGL2D(view) {
             this.view = view;
@@ -4354,26 +4920,45 @@ webvn.extend('webgl', ['class'], function (exports, kclass) {
 
             this.drawImageProgram = new DrawImageProgram(gl, view);
             this.transitionProgram = new TransitionProgram(gl, view);
+            this.filterProgram = new FilterProgram(gl, view);
         },
 
-        drawImage: function (image, x, y, alpha) {
-            this.drawImageProgram.use().render(image, x, y, alpha);
+        drawImage: function (image, x, y, alpha, scaleX, scaleY) {
+            this.drawImageProgram.use().render(image, x, y, alpha, scaleX, scaleY);
         },
 
-        drawTransition: function (image1, image2, progress, type, x, y, alpha) {
+        drawTransition: function (image1, image2, progress, type, x1, y1, x2, y2, alpha, scaleX, scaleY, filter, lumaImage) {
             var gl = this.gl,
                 view = this.view;
 
             var frameBuffer1 = createFrameBuffer(gl, view, 0),
                 frameBuffer2 = createFrameBuffer(gl, view, 1);
             frameBuffer1.start();
-            this.drawImage(image1, x, y, alpha);
+            this.drawImage(image1, x1, y1, alpha, scaleX, scaleY);
             frameBuffer1.end();
             frameBuffer2.start();
-            this.drawImage(image2, x, y, alpha);
+            this.drawImage(image2, x2, y2, alpha, scaleX, scaleY);
             frameBuffer2.end();
+
+            if (filter) this.bufferFilter();
             this.transitionProgram.render(frameBuffer1.get(),
-                frameBuffer2.get(), progress, type);
+                frameBuffer2.get(), progress, type, lumaImage);
+            if (filter) this.drawFilter(filter.name, filter.value);
+        },
+
+        bufferFilter: function () {
+            var gl = this.gl,
+                view = this.view;
+
+            this.filterFrameBuffer = createFrameBuffer(gl, view, 2);
+            this.filterFrameBuffer.start();
+        },
+
+        drawFilter: function (type, value) {
+            var filterFrameBuffer = this.filterFrameBuffer;
+
+            filterFrameBuffer.end();
+            this.filterProgram.render(filterFrameBuffer.get(), type, value);
         },
 
         clear: function () {
@@ -4393,11 +4978,9 @@ webvn.extend('webgl', ['class'], function (exports, kclass) {
 /**
  * @namespace webvn.canvas
  */
-webvn.module('canvas', ['class', 'util'], function (kclass, util) {
+webvn.module('canvas', function (Class, exports) {
     "use strict";
-    var exports = {};
-
-    var renderer = exports.renderer = kclass.module(function () {
+    var renderer = exports.renderer = Class.module(function () {
         var exports = {};
 
         var requestAnim = window.requestAnimationFrame;
@@ -4406,14 +4989,18 @@ webvn.module('canvas', ['class', 'util'], function (kclass, util) {
 
         var scenes = [];
 
+        var len = 0, i;
+
         function render(timestamp) {
             if (isPaused) {
                 return;
             }
 
-            util.each(scenes, function (scene) {
-                scene.render(timestamp);
-            });
+            for (i = 0; i < len; i++) {
+                if (scenes[i].change()) {
+                    scenes[i].render(timestamp);
+                }
+            }
 
             requestAnim(render);
         }
@@ -4432,21 +5019,29 @@ webvn.module('canvas', ['class', 'util'], function (kclass, util) {
         };
 
         exports.add = function (scene) {
+            len++;
             scene.index = scenes.length;
             scenes.push(scene);
+        };
+
+        exports.remove = function (scene) {
+            len--;
+            var index = scene.index;
+            if (index === undefined) {
+                return;
+            }
+            scenes.splice(index, 1);
         };
 
         return exports;
     });
 
     renderer.start();
-
-    return exports;
 });
-webvn.extend('canvas', ['class', 'webgl', 'util'], function (exports, kclass, webgl, util) {
+webvn.extend('canvas', function (exports, Class, webgl) {
     "use strict";
 
-    var Scene = exports.Scene = kclass.create({
+    var Scene = exports.Scene = Class.create({
 
         constructor: function Scene(view) {
             this.view = view;
@@ -4454,6 +5049,19 @@ webvn.extend('canvas', ['class', 'webgl', 'util'], function (exports, kclass, we
             this.width = view.width;
             this.height = view.height;
             this.children = [];
+        },
+
+        change: function () {
+            var children = this.children,
+                len = children.length;
+
+            for (var i = 0; i < len; i++) {
+                if (children[i].change()) {
+                    return true;
+                }
+            }
+
+            return false;
         },
 
         clear: function () {
@@ -4468,14 +5076,17 @@ webvn.extend('canvas', ['class', 'webgl', 'util'], function (exports, kclass, we
         },
 
         render: function () {
-            var self = this,
-                children = this.children;
+            var children = this.children;
 
             this.clear();
 
-            util.each(children, function (child) {
-                child.render(self);
-            });
+            var i, len = children.length;
+
+            for (i = 0; i < len; i++) {
+                if (children[i].visible) {
+                    children[i].render(this);
+                }
+            }
         }
 
     });
@@ -4485,14 +5096,14 @@ webvn.extend('canvas', ['class', 'webgl', 'util'], function (exports, kclass, we
     };
 
 });
-webvn.extend('canvas', ['class', 'util'], function (exports, kclass, util) {
+webvn.extend('canvas', function (exports, Class, util) {
     "use strict";
 
     /* Particle system
      * Use canvas 2d api since it is easier to implement
      * Same logic level as Scene class
      */
-    var Emitter = exports.Emitter = kclass.create({
+    var Emitter = exports.Emitter = Class.create({
         constructor: function (v, config) {
 
             this.view = v;
@@ -4909,7 +5520,7 @@ webvn.extend('canvas', ['class', 'util'], function (exports, kclass, util) {
 
         }
     }, {
-        Particle: kclass.create({
+        Particle: Class.create({
             constructor: function Particle() {
 
                 this.pos = {
@@ -5192,9 +5803,10 @@ webvn.extend('canvas', ['class', 'util'], function (exports, kclass, util) {
     }
 
 });
-webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, kclass, loader, anim, util) {
+webvn.extend('canvas', function (exports, Class, loader, anim, util, config, storage) {
+    var conf = config.create('canvas');
 
-    var Entiy = kclass.create({
+    var Entiy = Class.create({
 
         constructor: function Entity() {
             "use strict";
@@ -5203,9 +5815,15 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
             this.visible = false;
         },
 
+        change: function () {
+            return true;
+        },
+
         render: function () {}
 
     });
+
+    var lumaAsset = storage.createAsset(conf.get('lumaPath'), conf.get('lumaExtension'));
 
     var ImageEntity = exports.ImageEntity = Entiy.extend({
 
@@ -5219,7 +5837,44 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
             // Only when position is null, x and y will take effect.
             this.position = null;
             this.progress = 1;
+            this.scaleX = 1;
+            this.scaleY = 1;
             this.transition = 'linear';
+            this.filter = null;
+
+            this.x2 = null;
+            this.y2 = null;
+
+            this.attributes = [
+                'x',
+                'y',
+                'alpha',
+                'width',
+                'height',
+                'position',
+                'progress',
+                'scaleX',
+                'scaleY',
+                'transition',
+                'filter',
+                'x2',
+                'y2'
+            ];
+        },
+
+        change: function () {
+            var attributes = this.attributes,
+                len = attributes.length, key;
+
+            for (var i = 0; i < len; i++) {
+                key = attributes[i];
+                if (this['_' + key] !== this[key]) {
+                    this['_' + key] = this[key];
+                    return true;
+                }
+            }
+
+            return false;
         },
 
         setPosition: function (x, y) {
@@ -5253,43 +5908,65 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
                 ih = image.height;
 
             switch (position) {
+                case 'c':
                 case 'center':
                     this.x = (w - iw) / 2;
                     this.y = (h - ih) / 2;
                     break;
+                case 'bc':
                 case 'bottomCenter':
                     this.x = (w - iw) / 2;
                     this.y = h - ih;
                     break;
+                case 'tc':
                 case 'topCenter':
                     this.x = (w - iw) / 2;
                     this.y = 0;
                     break;
+                case 'l':
                 case 'left':
                     this.x = 0;
                     this.y = (h - ih) / 2;
                     break;
+                case 'bl':
                 case 'bottomLeft':
                     this.x = 0;
                     this.y = h - ih;
                     break;
+                case 'tl':
                 case 'topLeft':
                     this.x = 0;
                     this.y = 0;
                     break;
+                case 'r':
                 case 'right':
                     this.x = w - iw;
                     this.y = (h - ih) / 2;
                     break;
+                case 'br':
                 case 'bottomRight':
                     this.x = w - iw;
                     this.y = h - ih;
                     break;
+                case 'tr':
                 case 'topRight':
                     this.x = w - iw;
                     this.y = 0;
                     break;
             }
+        },
+
+        animate: function (to, duration) {
+            var ease;
+            if (to.ease) {
+                ease = to.ease;
+                delete to.ease;
+            }
+
+            if (to.x !== undefined || to.y === undefined) {
+                this.position = null;
+            }
+            anim.create(this).to(to, duration, ease);
         },
 
         fadeIn: function (duration) {
@@ -5300,11 +5977,40 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
             }, duration);
         },
 
+        fadeOut: function (duration) {
+            var self = this;
+
+            anim.create(this).to({
+                alpha: 0
+            }, duration).call(function () {
+                self.visible = false;
+            });
+        },
+
         load: function (src, duration) {
             "use strict";
             var self = this;
 
-            loader.image(src).then(function (image) {
+            src = [src];
+
+            // Handle situation
+            if (util.startsWith(this.transition, 'luma')) {
+                var lumaType = this.transition.substr(4);
+                // Lowercase first character
+                lumaType = lumaType.charAt(0).toLowerCase() + lumaType.substr(1);
+                this.transition = 'luma';
+                src.push(lumaAsset.get(lumaType));
+            }
+
+            loader.image(src).then(function (images) {
+                var image;
+                if (util.isArray(images)) {
+                    self.lumaImage = images[1];
+                    image = images[0];
+                } else {
+                    image = images;
+                }
+
                 if (self.image) {
                     self.image2 = self.image;
                     self._load(image);
@@ -5330,12 +6036,14 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
         },
 
         render: function (scene) {
-            "use strict";
-            if (!this.visible) {
-                return;
-            }
 
             var ctx = scene.ctx;
+
+            if (this.progress !== 1 && this.x2 === null) {
+                // Store the last image x, y before recalculate position.
+                this.x2 = this.x;
+                this.y2 = this.y;
+            }
 
             this._calPosition(scene.view);
 
@@ -5343,13 +6051,20 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
                 x = this.x,
                 y = this.y,
                 alpha = this.alpha,
+                scaleX = this.scaleX,
+                scaleY = this.scaleY,
                 transition = this.transition,
-                progress = this.progress;
+                progress = this.progress,
+                lumaImage = this.lumaImage;
 
             if (progress !== 1) {
-                ctx.drawTransition(this.image2, image, progress, transition, x, y, alpha);
+                ctx.drawTransition(this.image2, image, progress, transition, this.x2, this.y2, x, y, alpha, scaleX, scaleY, this.filter, lumaImage);
             } else {
-                ctx.drawImage(image, x, y, alpha);
+                this.x2 = null;
+                var filter = this.filter;
+                if (filter) ctx.bufferFilter();
+                ctx.drawImage(image, x, y, alpha, scaleX, scaleY);
+                if (filter) ctx.drawFilter(filter.name, filter.value);
             }
         }
 
@@ -5360,28 +6075,24 @@ webvn.extend('canvas', ['class', 'loader', 'anim', 'util'], function (exports, k
     };
 
 });
-/**
- * Audio and video
- * @namespace webvn.media
- */
-webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, util, anim) {
-    var exports = {};
-
+webvn.module('media', function (Class, log, util, anim, config, storage, exports) {
     // Const variables
-    var STATE = {
-            NOT_LOADED: 0,
-            PAUSE: 1,
-            PLAY: 2
-        };
+    var STATE = exports.STATE = {
+        NOT_LOADED: 0,
+        PAUSE: 1,
+        PLAY: 2
+    };
 
-    /**
-     * @class webvn.media.Base
-     */
-    var Base = exports.Base = kclass.create({
+    var Base = exports.Base = Class.create({
         constructor: function Base() {
             this.state = STATE.NOT_LOADED;
             this.el = null;
         },
+
+        isLoaded: function () {
+            return this.state !== STATE.NOT_LOADED;
+        },
+
         /**
          * Load media and play(optional)
          * @method webvn.media.Base#load
@@ -5410,6 +6121,7 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
             // Start loading
             this.el.src = src;
         },
+
         /**
          * Pause media
          * @method webvn.media.Base#pause
@@ -5420,6 +6132,7 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
                 this.state = STATE.PAUSE;
             }
         },
+
         /**
          * Play media
          * @method webvn.media.Base#play
@@ -5430,84 +6143,89 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
                 this.state = STATE.PLAY;
             }
         },
+
         isPlaying: function () {
             "use strict";
             return this.state === STATE.PLAY;
         },
+
         /**
          * Stop media
          * @method webvn.media.Base#stop
          */
         stop: function () {
             if (this.state !== STATE.NOT_LOADED) {
-                this.currentTime(0);
+                this.curTime = 0;
                 this.pause();
                 this.state = STATE.PAUSE;
             }
         },
-        /**
-         * Set the currentTime of media
-         * @method webvn.media.Base#currentTime
-         * @param {number} time seconds
-         */
-        /**
-         * Get the currentTime of media
-         * @method webvn.media.Base#currentTime
-         * @returns {number}
-         */
-        currentTime: function (time) {
-            if (this.state !== STATE.NOT_LOADED) {
-                if (time !== undefined) {
-                    this.el.currentTime = time;
-                } else {
-                    return this.el.currentTime;
-                }
-            }
-        },
-        /**
-         * Set the volume of media
-         * @method webvn.media.Base#volume
-         * @param {number} time float number between 0 and 1
-         */
-        /**
-         * Get the volume of media
-         * @method webvn.media.Base#volume
-         * @returns {Number}
-         */
-        volume: function (volume) {
-            if (volume !== undefined) {
-                this.el.volume = volume;
-            } else {
-                return this.el.volume;
-            }
-        },
-        /**
-         * Loop media or not
-         * @method webvn.media.Base#loop
-         * @param {boolean} flag loop or not
-         */
-        loop: function (flag) {
-            this.el.loop = flag;
-        },
+
         /**
          * Set events of media
          * @method webvn.media.Base#event
          * @param {object} events events such as onload, onended
          */
-        event: function (events) {
+        events: function (events) {
             var self = this;
             util.each(events, function (fn, type) {
                 self.el['on' + type] = fn;
             });
         }
+
+    }, {
+        loop: {
+            get: function () {
+                return this.el.loop;
+            },
+            set: function (val) {
+                this.el.loop = val;
+            }
+        },
+        curTime: {
+            get: function () {
+                return this.el.currentTime;
+            },
+            set: function (val) {
+                this.el.currentTime = val;
+            }
+        },
+        volume: {
+            get: function () {
+                return this.el.volume;
+            },
+            set: function (val) {
+                this.el.volume = val;
+            }
+        }
     });
 
-    /**
-     * Append class in order not to conflict with primitive Audio class.
-     * @class webvn.media.AudioClass
-     * @extends webvn.media.Base
-     */
+
+
+    // Unlike audio, video object is passed by user.
+    var Video = exports.Video = Base.extend({
+
+        constructor: function Video(video) {
+            this.callSuper();
+            this.el = video;
+        }
+
+    });
+
+    exports.video = Class.module(function (exports) {
+        exports.create = function (video) {
+            return new Video(video);
+        }
+    });
+
+});
+webvn.extend('media', function (exports, storage, config, Class) {
+    var Base = exports.Base,
+        STATE = exports.STATE;
+
+    // Append class in order not to conflict with primitive Audio class.
     var AudioClass = exports.AudioClass = Base.extend({
+
         constructor: function AudioClass() {
             this.callSuper();
             this.el = new Audio;
@@ -5515,30 +6233,42 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
             this.fadeIn = false;
             this.fadeOut = false;
         },
+
         load: function (src, autoplay) {
             if (autoplay === undefined) {
                 autoplay = true;
             }
+
             var self = this;
+
             // Stop playing music
             this.stop();
             this.state = STATE.NOT_LOADED;
+
+            var el = this.el;
+
             // Autoplay init
             if (autoplay) {
-                this.el.onloadeddata = function () {
+                el.onloadeddata = function () {
                     self.duration = self.el.duration;
                     self.state = STATE.PAUSE;
                     self.play();
                 };
             } else {
-                this.el.onloadeddata = function () {
+                el.onloadeddata = function () {
                     self.duration = self.el.duration;
                     self.state = STATE.PAUSE;
                 }
             }
+
             // Start loading
-            this.el.src = src;
+            if (this.asset) {
+                el.src = this.asset.get(src);
+            } else {
+                el.src = src;
+            }
         },
+
         play: function () {
             this.callSuper();
             if (this.fadeIn) {
@@ -5553,6 +6283,7 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
                 });
             }
         },
+
         pause: function () {
             var self = this;
             if (this.state !== STATE.PLAY) {
@@ -5575,358 +6306,461 @@ webvn.module('media', ['class', 'log', 'util', 'anim'], function (kclass, log, u
                 this.state = STATE.PAUSE;
             }
         },
+
         _stopTween: function () {
             if (this._anim) {
                 this._anim.stop();
                 this.volume(this._volume);
             }
         }
+
     });
 
-    /**
-     * Unlike audio, video object is passed by user.
-     * @class webvn.media.Video
-     * @extends webvn.media.Base
-     * @param {object} video video element
-     */
-    var Video = exports.Video = Base.extend({
-        constructor: function Video(video) {
-            this.callSuper();
-            this.el = video;
-        }
-    });
+    var audio = exports.audio = Class.module(function (exports) {
+        var audios = {};
 
-    var audioCache = {};
-
-    /**
-     * Create an AudioClass instance
-     * @function webvn.media.createAudio
-     * @param {string} name name of audio
-     * @returns {AudioClass}
-     */
-    var createAudio = exports.createAudio = function (name) {
-        if (audioCache[name]) {
-            return audioCache[name];
-        }
-        audioCache[name] = new AudioClass();
-        return audioCache[name];
-    };
-
-    /**
-     * Get audio instance if exists
-     * @function webvn.media.getAudio
-     * @param {string} name name of audio
-     * @returns {AudioClass|undefined}
-     */
-    exports.getAudio = function (name) {
-        return audioCache[name];
-    };
-
-    /**
-     * Create a Video instance
-     * @function webvn.media.createVideo
-     * @param {object} video video element
-     * @returns {Video}
-     */
-    exports.createVideo = function (video) {
-        return new Video(video);
-    };
-
-    // Init audios
-    // Background music
-    var bgm = createAudio('bgm');
-    bgm.loop(true);
-    bgm.duration = 2000;
-    // Sound effect
-    createAudio('se');
-    // Voice
-    createAudio('vo');
-    // System sound, for example: button hover effect
-    createAudio('sys');
-
-    return exports;
-});
-/* Module text
- * All effects about text, such as animation is defined here
- */
-
-webvn.module('text', ['util', 'class', 'select'],
-    function (util, kclass, select) {
-        
-        var exports = {};
-
-        var TextAnim = exports.TextAnim = kclass.create({
-            constructor: function TextAnim(el) {
-
-                // If the element is a dom node, pass it into a select element
-                if (!select.isSelect(el)) {
-                    el = select(el);
-                }
-
-                this.$el = el;
-                this.data = '';
-                this.length = 0;
-                this.type = 'fadeIn';
-                this.duration = 50;
-                this.timers = [];
-
-            },
-            load: function (data, autoshow) {
-
-                if (autoshow === undefined) {
-                    autoshow = true;
-                }
-
-                this.stopTimer();
-
-                this.data = data;
-                this.length = data.length;
-                if (autoshow) {
-                    this.show();
-                }
-
-            },
-            show: function () {
-
-                this.$el.html(this.splitText(this.data));
-                this.$el.find('span').hide();
-                for (var i = 0; i < this.length; i++) {
-                    this.showChar(i);
-                }
-
-            },
-            showChar: function (i) {
-
-                var self = this,
-                    animDuration = this.duration / 100 + 's';
-
-                this.timers[i] = setTimeout(function () {
-
-                    self.$el.find('.char' + i).show().css({
-                        '-webkit-animation-duration': animDuration,
-                        'display': 'inline-block'
-                    }).addClass(self.type);
-
-                    self.timers[i] = null;
-
-                }, i * this.duration);
-
-            },
-            // Split text into different span
-            // TODO use template to replace it when template module is completed
-            splitText: function (data) {
-
-                var ret = '';
-
-                for (var i = 0, len = data.length; i < len; i++) {
-                    var char = data[i];
-                    if (char === ' ') {
-                        char = '&nbsp;';
-                    }
-                    ret += '<span class="char' + i + '">' + char + '</span>';
-                }
-
-                return ret;
-
-            },
-            stopTimer: function () {
-
-                for (var i = 0; i < this.length; i++) {
-                    if (this.timers[i]) {
-                        clearTimeout(this.timers[i]);
-                        this.timers[i] = null;
-                    }
-                }
-
+        exports.create = function (name) {
+            if (audios[name]) {
+                return audios[name];
             }
-        });
-
-        exports.createAnim = function (el) {
-
-            return new TextAnim(el);
-
+            audios[name] = new AudioClass();
+            return audios[name];
         };
 
-        return exports;
-
+        exports.get = function (name) {
+            return audios[name];
+        };
     });
-/**
- * Manager of ui component
- * @namespace webvn.ui
- */
-webvn.module('ui', ['class', 'select', 'config', 'util', 'script'], function (kclass, select, config, util, script) {
 
-    var conf = config.create('ui');
+    var cfg = config.create('media');
 
-    var exports = {},
-        cache = {}; // Store all the ui components
+    var cfgBgm = cfg.get('bgm');
+    var bgm = audio.create('bgm');
+    bgm.asset = storage.createAsset(cfgBgm.path, cfgBgm.extension);
+    bgm.loop = true;
+    bgm.duration = 2000;
 
-    var $container = select.get('#' + conf.get('container'));
+    var cfgSe = cfg.get('se');
+    var se = audio.create('se');
+    se.asset = storage.createAsset(cfgSe.path, cfgSe.extension);
+
+    var cfgVo = cfg.get('vo');
+    var vo = audio.create('vo');
+    vo.asset = storage.createAsset(cfgVo.path, cfgVo.extension);
+
+    // System sound, for example: button hover effect
+    audio.create('sys');
+});
+webvn.module('text', function (util, Class, select, exports) {
+    var TextAnim = exports.TextAnim = Class.create({
+
+        constructor: function TextAnim($el) {
+
+            // If the element is a dom node, pass it into a select element
+            if (!select.isSelect($el)) {
+                $el = select($el);
+            }
+
+            this.$el = $el;
+            this.data = '';
+            this.length = 0;
+            this.type = 'fadeIn';
+            this.duration = 50;
+            this.timers = [];
+            this.isPlaying = false;
+
+        },
+
+        load: function (data, autoshow) {
+
+            if (autoshow === undefined) {
+                autoshow = true;
+            }
+
+            this.stopTimer();
+
+            this.data = data;
+            this.length = data.length;
+            if (autoshow) {
+                this.show();
+            }
+
+        },
+
+        show: function () {
+            var len = this.length,
+                self = this,
+                $el = this.$el;
+
+            this.isPlaying = true;
+
+            $el.html(this.splitText(this.data));
+
+            var $span = $el.find('span');
+            $span.hide();
+
+            for (var i = 0; i < len; i++) {
+                this.showChar(i);
+            }
+
+            // Remove everything when done
+            setTimeout(function () {
+                self.stop();
+            }, (this.duration / 10) * i + this.duration);
+
+        },
+
+        showChar: function (i) {
+
+            var self = this,
+                animDuration = this.duration / 1000 + 's';
+
+            this.timers[i] = setTimeout(function () {
+
+                self.$el.find('.char' + i).css('display', 'inline-block').css({
+                    '-webkit-animation-duration': animDuration
+                }).addClass(self.type);
+
+                self.timers[i] = null;
+
+            }, i * (this.duration / 10));
+
+        },
+
+        // Split text into different span
+        splitText: function (data) {
+
+            var ret = '';
+
+            for (var i = 0, len = data.length; i < len; i++) {
+                var char = data[i];
+                if (char === ' ') {
+                    char = '&nbsp;';
+                }
+                ret += '<span class="char' + i + '">' + char + '</span>';
+            }
+
+            return ret;
+
+        },
+
+        isStop: function () {
+            return !this.isPlaying;
+        },
+
+        stop: function () {
+            this.isPlaying = false;
+            this.stopTimer();
+            this.$el.find('span').show().removeAttr('class');
+        },
+
+        stopTimer: function () {
+
+            for (var i = 0; i < this.length; i++) {
+                if (this.timers[i]) {
+                    clearTimeout(this.timers[i]);
+                    this.timers[i] = null;
+                }
+            }
+
+        }
+    });
+
+    exports.createAnim = function (el) {
+        return new TextAnim(el);
+    };
+});
+webvn.module('ui', function (Class, select, config, util, script, exports) {
+    var cfg = config.create('ui'),
+        cfgContainer = cfg.get('container'),
+        cfgDefaultTpl = cfg.get('defaultTpl'),
+        cfgWidth = cfg.get('width'),
+        cfgHeight = cfg.get('height'),
+        cfgAutoResize = cfg.get('autoResize');
+
+    var uis = {};
+
+    exports.create = function (name, type) {
+        var ui;
+
+        switch (type) {
+            case 'canvas':
+                ui = new CanvasUi(name);
+                break;
+            default:
+                ui = new DivUi(name);
+                break;
+        }
+
+        uis[name] = ui;
+
+        return ui;
+    };
+
+    exports.get = function (name) {
+        return uis[name];
+    };
+
+    var $container = select.get(cfgContainer);
     if ($container.length === 0) {
-        select.get('body').append('<div class="center">'+
-        '<div id="' + conf.get('container') + '"></div>' +
-        '</div>');
+        select.get('body').append(cfgDefaultTpl);
     }
-    $container = select.get('#' + conf.get('container'));
-
-    // Init container width and height
+    $container = select.get(cfgContainer);
     $container.css({
-        width: conf.get('width'),
-        height: conf.get('height')
-    });
-
-    // When the ui is clicked, execute the script
-    $container.on('click', function () {
+        width: cfgWidth,
+        height: cfgHeight
+    }).on('click', function () {
+        // When the ui is clicked, execute the script
         script.play();
     });
 
-    exports.scale = 1;
     // Auto fill windows
-    var autoResize = conf.get('autoResize');
-    if (autoResize) {
+    exports.scale = 1;
+
+    var ratio = cfgWidth / cfgHeight;
+
+    function resize() {
+        var ww = window.innerWidth,
+            wh = window.innerHeight,
+            windowRatio = ww / wh;
+
+        if (ratio > windowRatio) {
+            exports.scale = ww / cfgWidth;
+        } else {
+            exports.scale = wh / cfgHeight;
+        }
+
+        // Zoom is better than transform scale
+        $container.css('zoom', exports.scale);
+    }
+
+    if (cfgAutoResize) {
         window.onresize = function () {
-            "use strict";
             resize();
         };
-    }
-    var width = conf.get('width'),
-        height = conf.get('height'),
-        ratio = width / height;
-    function resize() {
-        "use strict";
-        var ww = window.innerWidth,
-            wh = window.innerHeight;
-        var scale;
-        var windowRatio = ww / wh;
-        if (ratio > windowRatio) {
-            scale = ww / width;
-        } else {
-            scale = wh / height;
-        }
-        exports.scale = scale;
-        // Zoom is better than transform scale
-        $container.css('zoom', scale);
-    }
-    if (autoResize) {
         resize();
     }
 
-    // Create and add ui component
-    exports.create = function (name, type) {
-        var newUi;
-        switch (type) {
-            case 'canvas':
-                newUi = new CanvasUi(name);
-                break;
-            default:
-                newUi = new DivUi(name);
-                break;
-        }
-        cache[name] = newUi;
-        return newUi;
-    };
-
-    // Get ui component for manipulation
-    exports.get = function (name) {
-        return cache[name];
-    };
-
     // Base class for all ui class
-    var BaseUi = kclass.create({
-        constructor: function BaseUI(name) { },
+    var BaseUi = Class.create({
+
+        constructor: function BaseUi(name) {
+            this.init();
+        },
+
         init: function () {
             this.$el.hide();
             $container.append(this.$el);
         },
-        remove: function () {
-            this.$el.remove();
-        },
-        show: function () {
-            this.$el.show();
-            return this;
-        },
-        hide: function () {
-            this.$el.hide();
+
+        properties: function (attrs) {
+            var self = this;
+
+            util.each(attrs, function (attr, key) {
+                if (util.isObject(attr) && (attr['get'] || attr['set'])) {
+                    Object.defineProperty(self, key, attr);
+                } else {
+                    self[key] = attr;
+                }
+            });
+
             return this;
         }
+
     });
 
-    // Div element
     var DivUi = BaseUi.extend({
-        constructor: function DivUI(name) {
-            this.callSuper();
+
+        constructor: function DivUi(name) {
             this.$el = select.create('div');
             this.$el.attr('id', name);
-            this.init();
+
+            this.callSuper();
         },
-        // Set content
-        body: function (html) {
-            this.$el.html(html);
+
+        stopPropagation: function () {
+            this.$el.on('click', function (e) {
+                e.stopPropagation();
+            });
+
             return this;
         },
-        // Bind events
-        event: function (type, fn) {
+
+        events: function (type, fn) {
             var self = this,
                 events = {};
+
             if (util.isObject(type)) {
                 events = type;
             } else {
                 events[type] = fn;
             }
+
             util.each(events, function (fn, type) {
                 var parts = type.split(/\s/),
                     eventType = parts[0];
                 parts.shift();
                 var selector = parts.join(' ');
-                self.$el.on(eventType, selector, fn);
+                // No propagation
+                self.$el.on(eventType, selector, function (e) {
+                    e.stopPropagation();
+                    fn.call(this, e);
+                });
             });
+
             return this;
         }
+
     });
 
     // Canvas element
     var CanvasUi = BaseUi.extend({
+
         constructor: function CanvasUi(name) {
-            this.callSuper();
             this.$el = select.create('canvas');
             this.$el.attr('id', name);
             this.canvas = this.$el.get(0);
-            this.canvas.width = conf.get('width');
-            this.canvas.height = conf.get('height');
-            this.init();
+            this.canvas.width = cfgWidth;
+            this.canvas.height = cfgHeight;
+
+            this.callSuper();
         },
+
         getCanvas: function () {
             return this.canvas;
         }
+
+    });
+});
+webvn.extend('ui', function (exports, util, config, Class) {
+    'use strict';
+    var cfg = config.create('ui'),
+        cfgLang = cfg.get('lang');
+
+    var langs = {};
+
+    var Lang = Class.create({
+
+        constructor: function Lang(name) {
+            if (langs[name]) {
+                this.val = langs[name][cfgLang];
+            }
+        },
+
+        get: function (key) {
+            var val = this.val;
+
+            if (val[key]) return val[key];
+
+            return key;
+        }
+
     });
 
-    // UI Templates
-    var templates = {};
-    /**
-     * @function webvn.ui.createTemplate
-     * @param {string} name
-     * @param {string} content
-     */
-    exports.createTemplate = function (name, content) {
+    function create(name, content) {
         if (util.isObject(name)) {
             util.each(name, function (value, key) {
-                templates[key] = value;
+                langs[key] = value;
             });
         } else {
-            templates[name] = content;
+            langs[name] = content;
         }
+    }
+
+    var langInstances = {};
+
+    function get(name) {
+        var ret = langInstances[name];
+
+        if (!ret) ret = langInstances[name] = new Lang(name);
+
+        return ret;
+    }
+
+    exports.lang = {
+        create: create,
+        get: get
     };
-    /**
-     * @function webvn.ui.getTemplate
-     * @param name
-     * @returns {*}
-     */
-    exports.getTemplate = function (name) {
+});
+webvn.extend('ui', function (exports, util) {
+    'use strict';
+    var templates = {};
+
+    // underscore template
+    var regEvaluate = /<%([\s\S]+?)%>/g,
+        regInterpolate = /<%=([\s\S]+?)%>/g,
+        regEscape = /<%-([\s\S]+?)%>/g,
+        regMatcher = RegExp([
+            regEscape.source,
+            regInterpolate.source,
+            regEvaluate.source
+        ].join('|') + '|$', 'g');
+
+    var escapes = {
+        "'":      "'",
+        '\\':     '\\',
+        '\r':     'r',
+        '\n':     'n',
+        '\u2028': 'u2028',
+        '\u2029': 'u2029'
+    };
+
+    var regEscapeChar = /\\|'|\r|\n|\u2028|\u2029/g;
+
+    var escapeChar = function(match) {
+        return '\\' + escapes[match];
+    };
+
+    function template(text) {
+        var index = 0,
+            source = "__p+='";
+
+        text.replace(regMatcher, function (match, escape, interpolate, evaluate, offset) {
+            source += text.slice(index, offset).replace(regEscapeChar, escapeChar);
+            index = offset + match.length;
+
+            if (escape) {
+                source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
+            } else if (interpolate) {
+                source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
+            } else if (evaluate) {
+                source += "';\n" + evaluate + "\n__p+='";
+            }
+
+            return match;
+        });
+
+        source += "';\n";
+        source = 'with(obj||{}){\n' + source + '}\n';
+        source = "var __t,__p='',__j=Array.prototype.join," +
+            "print=function(){__p+=__j.call(arguments,'');};\n" +
+            source + 'return __p;\n';
+
+        var render = new Function('obj', 'util', source);
+
+        return function (data) {
+            return render.call(null, data, util);
+        };
+    }
+
+    function create(name, content) {
+        if (util.isObject(name)) {
+            util.each(name, function (val, key) {
+                templates[key] = template(val);
+            });
+        } else {
+            templates[name] = template(content);
+        }
+    }
+
+    function get(name) {
         return templates[name];
+    }
+
+    exports.template = {
+        create: create,
+        get: get
     };
-
-    return exports;
-
 });
 /**
  * Module test <br>
@@ -5934,18 +6768,19 @@ webvn.module('ui', ['class', 'select', 'config', 'util', 'script'], function (kc
  * It should be removed when the game is realeased.
  * @namespace webvn.test
  */
-webvn.module('test', ['class', 'select', 'script', 'util'], function (kclass, select, script, util) {
-    var exports = {};
+webvn.module('test', function (Class, select, script, util, exports) {
 
     // Component testing
-    exports.Component = kclass.create({
+    exports.Component = Class.create({
+
         constructor: function Component(scenarioId) {
             this.scenario = util.trim(select.get('#' + scenarioId).text());
         },
+
         start: function () {
             script.loadText(this.scenario, true);
         }
+
     });
 
-    return exports;
 });

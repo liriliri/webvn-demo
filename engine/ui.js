@@ -1,67 +1,191 @@
-webvn.use(["ui"], function (ui) { ui.createTemplate({
-    "cg": "<div class=\"title\">CG鉴赏</div>\r\n<ul class=\"container\">\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg1.bmp\">\r\n    </li>\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg2.bmp\">\r\n    </li>\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg3.bmp\">\r\n    </li>\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg4.bmp\">\r\n    </li>\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg5.bmp\">\r\n    </li>\r\n    <li>\r\n        <img class=\"th\" src=\"/asset/test/cg6.bmp\">\r\n    </li>\r\n</ul>\r\n<div class=\"close button\">关闭</div>\r\n<div class=\"viewer fill hidden\">\r\n    <img src=\"\" />\r\n</div>\r\n",
-    "dialog": "<div class=\"name\"></div>\r\n<div class=\"content\">\r\n    <img class=\"face\" src=\"\"/>\r\n    <span class=\"text\"></span>\r\n</div>",
-    "menu": "<ul>\r\n    <li class=\"start\">开始游戏</li>\r\n    <li class=\"load\">读取存档</li>\r\n    <li class=\"cg\">图像鉴赏</li>\r\n    <li class=\"music\">音乐鉴赏</li>\r\n    <li class=\"setting\">环境设定</li>\r\n</ul>",
-    "music": "<div class=\"title\">音乐鉴赏</div>\r\n<ul class=\"container\">\r\n    <li data-src=\"asset/bgm/bgm1.ogg\">Bgm1</li>\r\n    <li data-src=\"asset/bgm/bgm2.ogg\">Bgm2</li>\r\n</ul>\r\n<div class=\"progress\">\r\n    <span></span>\r\n</div>\r\n<div class=\"close button\">关闭</div>",
-    "setting": "<div class=\"title\">环境设定</div>\r\n<ul class=\"container\">\r\n    <li>\r\n        <label>文字显示速度</label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label>自动推进速度</label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label>背景音乐音量</label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label>效果音量</label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label>语音音量</label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n</ul>\r\n<div class=\"close button\">关闭</div>"
+webvn.use(function (ui) { ui.template.create({
+    "config": "<div class=\"ui-title\"><%= Config %></div>\r\n<ul class=\"container\">\r\n    <li>\r\n        <label><%= Text_Speed %></label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label><%= Text_Auto %></label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label><%= Music %></label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label><%= Sound %></label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n    <li>\r\n        <label><%= Voice %></label>\r\n        <input class=\"range-slider\" type=\"range\">\r\n    </li>\r\n</ul>\r\n<div class=\"close button\"><%= Close %></div>",
+    "dialog": "<div class=\"wrapper\">\r\n    <div class=\"name\"></div>\r\n    <div class=\"content\">\r\n        <img class=\"face hidden\" src=\"\"/>\r\n        <span class=\"text\"></span>\r\n    </div>\r\n    <ul class=\"controls\">\r\n        <li class=\"qsave\"><%= Q_Save %></li>\r\n        <li class=\"qlave\"><%= Q_Load %></li>\r\n        <li class=\"save\"><%= Save %></li>\r\n        <li class=\"load\"><%= Load %></li>\r\n        <li class=\"config\"><%= Config %></li>\r\n        <li class=\"log\"><%= History %></li>\r\n        <li class=\"exit\"><%= Title %></li>\r\n    </ul>\r\n</div>",
+    "gallery": "<div class=\"ui-title\"><%= Gallery %></div>\r\n<ul class=\"container\">\r\n</ul>\r\n<ul class=\"pagination\">\r\n</ul>\r\n<div class=\"close button\"><%= Close %></div>\r\n<div class=\"viewer fill hidden\">\r\n    <img src=\"\" />\r\n</div>\r\n",
+    "menu": "<ul>\r\n    <li class=\"start\"><%= Start %></li>\r\n    <li class=\"load\"><%= Load %></li>\r\n    <li class=\"cg\"><%= Gallery %></li>\r\n    <li class=\"music\"><%= Music %></li>\r\n    <li class=\"setting\"><%= Config %></li>\r\n</ul>",
+    "music": "<div class=\"ui-title\"><%= Music %></div>\r\n<ul class=\"container\">\r\n</ul>\r\n<div class=\"progress\">\r\n    <span></span>\r\n</div>\r\n<div class=\"close button\"><%= Close %></div>\r\n<ul class=\"controls\">\r\n    <li class=\"previous button disabled\">&lt;&lt;</li>\r\n    <li class=\"play button disabled\"></li>\r\n    <li class=\"next button disabled\">&gt;&gt;</li>\r\n</ul>",
+    "save": "<div class=\"ui-title\"><%= Title %></div>\r\n<ul class=\"container\">\r\n    <% util.each(records, function (record, index) { %>\r\n        <li class=\"<%= type %>\" data-num=\"<%= index %>\">\r\n            <span>\r\n                <%= record.title %><br><br>\r\n                <%= record.date %>\r\n            </span>\r\n        </li>\r\n    <% }) %>\r\n</ul>\r\n<div class=\"close button\"><%= Close %></div>\r\n",
+    "video": "<video class=\"fill\"></video>"
 });});
-webvn.use(['ui', 'select'],
-    function (ui, select) {
-        "use strict";
-        var exports = ui.create('cg', 'div'),
-            $el = exports.$el;
-        var tpl = ui.getTemplate('cg');
-        exports.body(tpl);
+webvn.use(function (ui) { ui.lang.create({
+    "config": {
+        "zh": {
+            "Config": "环境设定",
+            "Close": "关闭",
+            "Text Speed": "文字显示速度",
+            "Text Auto": "自动推进速度",
+            "Music": "背景乐",
+            "Sound": "效果音",
+            "Voice": "语音"
+        }
+    },
+    "dialog": {
+        "zh": {
+            "Q-Save": "快速存档",
+            "Q-Load": "快速读档",
+            "Load": "读档",
+            "Save": "存档",
+            "History": "历史",
+            "Config": "设置",
+            "Title": "标题画面"
+        }
+    },
+    "gallery": {
+        "zh": {
+            "Gallery": "图片鉴赏",
+            "Close": "关闭"
+        }
+    },
+    "menu": {
+        "zh": {
+            "Start": "开始游戏",
+            "Load": "读取存档",
+            "Gallery": "图片鉴赏",
+            "Music": "音乐鉴赏",
+            "Config": "环境设定"
+        }
+    },
+    "music": {
+        "zh": {
+            "Music": "音乐鉴赏",
+            "Close": "关闭",
+            "Play": "播放",
+            "Pause": "暂停"
+        }
+    },
+    "save": {
+        "zh": {
+            "Save": "存档",
+            "Close": "关闭",
+            "Load": "读档",
+            "Empty": "空"
+        }
+    }
+});});
+webvn.use(function (ui, select, config, storage, canvas) {
+    "use strict";
+    var uiName = 'gallery',
+        exports = ui.create('gallery'),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName);
 
-        $el.addClass('fill');
+    var cfg = config.create('uiGallery'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension'),
+        cfgFiles = cfg.get('files');
 
-        var $viewer = $el.find('.viewer');
-        $viewer.on('click', function () {
+    $el.addClass('fill').html(tpl({
+        Gallery: lang.get('Gallery'),
+        Close: lang.get('Close')
+    }));
+
+    var $container = $el.find('.container'),
+        $viewer = $el.find('.viewer'),
+        $pagination = $el.find('.pagination');
+
+    var renderer = canvas.renderer,
+        asset = storage.createAsset(cfgPath, cfgExtension),
+        pageSize = 6,
+        pageCount = Math.ceil(cfgFiles.length / pageSize);
+
+    function page(num) {
+        var html = '',
+            start = (num - 1) * pageSize,
+            end = start + pageSize;
+        if (end > cfgFiles.length) {
+            end = cfgFiles.length;
+        }
+        for (; start < end; start++) {
+            html += '<li><img class="th" src="' + asset.get(cfgFiles[start]) + '"></li>';
+        }
+        $container.html(html);
+    }
+    page(1);
+
+    if (pageCount > 1) {
+        var html = '';
+        for (var i = 0; i < pageCount; i++) {
+            html += '<li class="button" data-num="' + (i+1) + '">' + (i+1) + '</li>';
+        }
+        $pagination.html(html);
+    }
+
+    exports.stopPropagation().properties({
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut'),
+        duration: cfg.get('duration')
+    }).events({
+
+        'click .close': function () {
+            hide();
+        },
+
+        'click li img': function () {
+            var $this = select.get(this),
+                src = $this.attr('src');
+            $viewer.find('img').attr('src', src);
+            $viewer.removeClass('hidden').fadeIn(exports.duration);
+        },
+
+        'click .pagination li': function () {
             var $this = select.get(this);
-            $this.fadeOut(300);
-        });
+            page(Number($this.attr('data-num')));
+        },
 
-        exports.event({
-            'click .close': function () {
-                hide();
-            },
-            'click li img': function () {
-                var $this = select.get(this),
-                    src = $this.attr('src');
-                $viewer.find('img').attr('src', src);
-                $viewer.removeClass('hidden').fadeIn(300);
-            }
-        });
+        'click .viewer': function () {
+            var $this = select.get(this);
+            $this.fadeOut(exports.duration);
+        }
 
-        exports.show = function () {
-            $el.fadeIn(300);
-        };
-
-        var hide = exports.hide = function () {
-            $el.fadeOut(300);
-        };
     });
-webvn.use(['ui', 'select', 'media'],
-    function (ui, select, media) {
-        "use strict";
-        var exports = ui.create('music'),
-            $el = exports.$el;
-        var tpl = ui.getTemplate('music');
-        exports.body(tpl);
-        $el.addClass('fill');
 
-        var $progress = $el.find('.progress'),
-            $progressFill = $progress.find('span');
+    exports.show = function () {
+        renderer.stop();
 
-        var music = media.createAudio('music');
-        music.loop(true);
-        music.event({
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+    };
+
+    var hide = exports.hide = function () {
+        renderer.start();
+
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
+    };
+});
+webvn.use(function (ui, select, media, config, storage, util, Class) {
+    "use strict";
+    var uiName = 'music',
+        exports = ui.create(uiName),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName);
+
+    var cfg = config.create('uiMusic'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension');
+
+    $el.addClass('fill').html(tpl({
+        Music: lang.get('Music'),
+        Close: lang.get('Close')
+    }));
+
+    var controller = Class.module(function () {
+        var exports = {};
+
+        var music = media.audio.create('music');
+        music.asset = storage.createAsset(cfgPath, cfgExtension);
+        music.loop = true;
+        music.events({
+
             'timeupdate': function () {
-                var percentage = music.currentTime() / music.duration;
+                var percentage = music.curTime / music.duration;
                 $progressFill.css('width', $progress.width() * percentage);
             }
+
         });
 
+        var $progress = $el.find('.progress'),
+        $progressFill = $progress.find('span');
         $progress.on('click', function (e) {
             if (!music.isPlaying()) {
                 return;
@@ -73,299 +197,599 @@ webvn.use(['ui', 'select', 'media'],
             music.currentTime(music.duration * percentage);
         });
 
-        exports.event({
-            'click .close': function () {
-                music.stop();
-                $el.find('li').removeClass('playing');
-                var menu = ui.get('menu');
-                menu.playBgm();
-                hide();
-            },
-            'click li': function () {
-                var $this = select.get(this),
-                    src = $this.attr('data-src');
-                $el.find('li').removeClass('playing');
-                $this.addClass('playing');
-                music.load(src);
-            }
+        var $container = $el.find('.container'),
+            $playBtn = $el.find('.play'),
+            $nextBtn = $el.find('.next'),
+            $preBtn = $el.find('.previous');
+
+        var files = cfg.get('files'), html = '';
+        util.each(files, function (file, index) {
+            html += '<li class="num' + index + '" data-num="' + index + '">' + file + '</li>';
         });
+        $container.html(html);
 
-        exports.show = function () {
-            $el.fadeIn(300);
+        var curNum = -1,
+            total = files.length;
+
+        var $all = $el.find('.container li');
+
+        var play = exports.play = function (num) {
+            if (num === undefined) {
+                if (!music.isLoaded()) {
+                    return;
+                }
+                if (music.isPlaying()) {
+                    $playBtn.text('Play');
+                    music.pause();
+                } else {
+                    $playBtn.text('Pause');
+                    music.play();
+                }
+            } else {
+                $playBtn.removeClass('disabled').text('Pause');
+                $nextBtn.removeClass('disabled');
+                $preBtn.removeClass('disabled');
+                $all.removeClass('playing');
+                curNum = num;
+                $el.find('.num' + num).addClass('playing');
+                music.load(files[num]);
+            }
         };
 
-        var hide = exports.hide = function () {
-            $el.fadeOut(300);
+        exports.next = function () {
+            if (curNum < 0) return;
+            curNum++;
+            if (curNum >= total) curNum = curNum - total;
+            play(curNum);
         };
+
+        exports.previous = function () {
+            if (curNum < 0) return;
+            curNum--;
+            if (curNum < 0) curNum = total - 1;
+            play(curNum);
+        };
+
+        exports.pause = function () {
+            $playBtn.text('play');
+            music.pause();
+        };
+
+        return exports;
     });
-webvn.use(['ui'], function (ui) {
-    "use strict";
-    var exports = ui.create('setting'),
-        $el = exports.$el;
-    $el.addClass('fill');
-    var tpl = ui.getTemplate('setting');
-    exports.body(tpl);
 
-    exports.event({
+    exports.stopPropagation().properties({
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut'),
+        duration: cfg.get('duration')
+    }).events({
+
         'click .close': function () {
+            controller.pause();
+            var menu = ui.get('menu');
+            menu.playBgm();
             hide();
+        },
+
+        'click .container li': function () {
+            var $this = select.get(this);
+            controller.play($this.attr('data-num'));
+        },
+
+        'click .play': function () {
+            controller.play();
+        },
+
+        'click .next': function () {
+            controller.next();
+        },
+
+        'click .previous': function () {
+            controller.previous();
         }
+
     });
 
     exports.show = function () {
-        $el.fadeIn(300);
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
     };
 
     var hide = exports.hide = function () {
-        $el.fadeOut(300);
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
+    };
+});
+webvn.use(function (ui, canvas, config) {
+    "use strict";
+    var uiName = 'config',
+        exports = ui.create(uiName),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName);
+
+    var cfg = config.create('uiConfig');
+
+    $el.addClass('fill').html(tpl({
+        Config: lang.get('Config'),
+        Close: lang.get('Close'),
+        Text_Speed: lang.get('Text Speed'),
+        Text_Auto: lang.get('Text Auto'),
+        Music: lang.get('Music'),
+        Sound: lang.get('Sound'),
+        Voice: lang.get('Voice')
+    }));
+
+    var renderer = canvas.renderer;
+
+    exports.stopPropagation().properties({
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut'),
+        duration: cfg.get('duration')
+    }).events({
+
+        'click .close': function () {
+            hide();
+        }
+
+    });
+
+    exports.show = function () {
+        renderer.stop();
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+    };
+
+    var hide = exports.hide = function () {
+        renderer.start();
+
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
     };
 
     return exports;
 });
-webvn.use(['ui', 'script', 'media', 'util'],
-    function (ui, script, media, util) {
-        "use strict";
-        /**
-         * @class webvn.ui.Menu
-         */
-        var exports = ui.create('menu', 'div');
-
-        // Properties
-        exports.bgm = null;
-        exports.btnClickSound = null;
-        exports.btnHoverSound = null;
-        exports.duration = 1000;
-        exports.fadeIn = true;
-        exports.fadeOut = true;
-
-        var bgm = media.createAudio('bgm'),
-            sysAudio = media.createAudio('sys');
-
-        var $el = exports.$el;
-        $el.addClass('fill');
-
-        var tpl = ui.getTemplate('menu');
-        exports.body(tpl);
-
-        var cg = ui.get('cg'),
-            music = ui.get('music'),
-            setting = ui.get('setting');
-
-        exports.event({
-            'click .start': function () {
-                if (exports.bgm) {
-                    bgm.stop();
-                }
-                if (exports.fadeOut) {
-                    $el.fadeOut(exports.duration, function () {
-                        script.resume();
-                    });
-                } else {
-                    $el.hide();
-                    script.resume();
-                }
-            },
-            'click .load': function () {
-                console.log('Load game!');
-            },
-            'click .setting': function () {
-                setting.show();
-            },
-            'click .cg': function () {
-                cg.show();
-            },
-            'click .music': function () {
-                if (exports.bgm) {
-                    bgm.stop();
-                }
-                music.show();
-            },
-            // Btn sound
-            'mouseover li': function () {
-                if (exports.btnHoverSound) {
-                    sysAudio.load(exports.btnHoverSound);
-                }
-            },
-            'click li': function () {
-                if (exports.btnClickSound) {
-                    sysAudio.load(exports.btnClickSound);
-                }
-            }
-        });
-
-        /**
-         * Show Menu
-         * @method webvn.ui.Menu#show
-         */
-        exports.show = function () {
-            script.pause();
-            if (exports.bgm) {
-                bgm.load(exports.bgm);
-            }
-            if (exports.fadeIn) {
-                $el.fadeIn(exports.duration);
-            } else {
-                $el.show();
-            }
-        };
-
-        /**
-         * Decide which button should be displayed.
-         * @method webvn.ui.Menu#btn
-         * @param {object} buttons
-         */
-        exports.btn = function (buttons) {
-            util.each(buttons, function (value, key) {
-                var $e = $el.find('ul li.' + key);
-                if (value === true) {
-                    $e.css('display', 'block');
-                } else if (value === false) {
-                    $e.css('display', 'none');
-                } else if (util.isString(value)) {
-                    $e.text(value);
-                }
-            });
-        };
-
-        exports.playBgm = function () {
-            if (exports.bgm) {
-                bgm.load(exports.bgm);
-            }
-        };
-
-    });
-webvn.use(['ui', 'canvas', 'storage', 'config'], function (ui, canvas, storage, config) {
+webvn.use(function (ui, config, util, canvas, storage, select, system) {
     "use strict";
-    var exports = ui.create('background', 'canvas');
+    var uiName = 'save',
+        exports = ui.create(uiName),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName);
 
-    var conf = config.create('uiBackground');
+    var cfg = config.create('uiSave'),
+        cfgSaveNum = cfg.get('saveNum');
 
-    var asset = storage.createAsset(conf.get('path'), conf.get('extension'));
+    var global = storage.createLocalStore('global'),
+        saves = global.get('saves') || [],
+        renderer = canvas.renderer;
 
-    var $el = exports.$el;
     $el.addClass('fill');
 
-    var image = new canvas.ImageEntity(),
-        scene = new canvas.Scene(exports.getCanvas());
+    exports.stopPropagation().properties({
+        duration: cfg.get('duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut')
+    }).events({
+
+        'click .close': function () {
+            hide();
+        },
+
+        'click .save': function () {
+            var $this = select.get(this),
+                num = Number($this.data('num')),
+                saveName = 'save' + num;
+
+            saves[num] = {
+                title: system.title(),
+                date: getDateTime()
+            };
+
+            global.set('saves', saves);
+            storage.save(saveName);
+            renderSave();
+        },
+
+        'click .load': function () {
+            var $this = select.get(this),
+                saveName = 'save' + $this.data('num');
+
+            storage.load(saveName);
+
+            exports.hide();
+        }
+
+    });
+
+    function getDateTime() {
+        var date = new Date;
+
+        return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate() +
+            ' ' + prependZero(date.getHours()) + ':' +
+            prependZero(date.getMinutes()) + ':' +
+            prependZero(date.getSeconds());
+    }
+
+    function prependZero(num) {
+        if (num < 10) {
+            return '0' + num;
+        }
+
+        return num;
+    }
+
+    exports.show = function (type) {
+        renderer.stop();
+
+        type === 'save' ? renderSave() : renderLoad();
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+    };
+
+    function renderSave() {
+        var i, records = [];
+
+        for (i = 0; i < cfgSaveNum; i++) {
+            saves[i] ? records.push(saves[i]) : records.push({
+                title: lang.get('Empty'),
+                date: ''
+            });
+        }
+
+        $el.html(tpl({
+            Title: lang.get('Save'),
+            Close: lang.get('Close'),
+            type: 'save',
+            records: records
+        }));
+    }
+
+    function renderLoad() {
+        var i, records = [];
+
+        for (i = 0; i < cfgSaveNum; i++) {
+            saves[i] ? records.push(saves[i]) : records.push({
+                title: lang.get('Empty'),
+                date: ''
+            });
+        }
+
+        $el.html(tpl({
+            Title: lang.get('Load'),
+            Close: lang.get('Close'),
+            type: 'load',
+            records: records
+        }));
+    }
+
+    var hide = exports.hide = function () {
+        renderer.start();
+
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
+    };
+});
+/* This ui component is also served as a template.
+ * Every other components should be written in the same style.
+ */
+webvn.use(function (ui, script, media, util, canvas, config, storage) {
+    "use strict";
+    var uiName = 'menu',
+        exports = ui.create(uiName),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName),
+        save = storage.create(uiName);
+
+    var cfg = config.create('uiMenu'),
+        cfgStartLabel = cfg.get('startLabel');
+
+    $el.addClass('fill').html(tpl({
+        'Start': lang.get('Start'),
+        'Load': lang.get('Load'),
+        'Gallery': lang.get('Gallery'),
+        'Music': lang.get('Music'),
+        'Config': lang.get('Config')
+    }));
+
+    var bgm = media.audio.get('bgm'),
+        sysAudio = media.audio.get('sys'),
+        renderer = canvas.renderer;
+
+    save.save(function () {
+        return {};
+    }).load(function () {
+        $el.hide();
+    });
+
+    exports.stopPropagation().properties({
+        bgm: cfg.get('bgm'),
+        btnClickSound: cfg.get('btnClkSound'),
+        btnHoverSound: cfg.get('btnHoverSound'),
+        duration: cfg.get('Duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('FadeOut')
+    }).events({
+
+        'click .start': function () {
+            renderer.start();
+
+            if (exports.bgm) bgm.stop();
+
+            if (exports.fadeOut) {
+                $el.fadeOut(exports.duration, function () {
+                    script.jump(cfgStartLabel);
+                });
+            } else {
+                $el.hide();
+                script.jump(cfgStartLabel);
+            }
+        },
+
+        'click .load': function () {
+            ui.get('save').show('load');
+        },
+
+        'click .setting': function () {
+            ui.get('config').show();
+        },
+
+        'click .cg': function () {
+            ui.get('gallery').show();
+        },
+
+        'click .music': function () {
+            if (exports.bgm) bgm.stop();
+
+            ui.get('music').show();
+        },
+
+        'mouseover li': function () {
+            if (exports.btnHoverSound) sysAudio.load(exports.btnHoverSound);
+        },
+
+        'click li': function () {
+            if (exports.btnClickSound) sysAudio.load(exports.btnClickSound);
+        }
+
+    });
+
+    exports.reset = function () {
+        $el.hide();
+    };
+
+    exports.show = function () {
+        renderer.stop();
+
+        if (exports.bgm) bgm.load(exports.bgm);
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+    };
+
+    exports.buttons = function (buttons) {
+        util.each(buttons, function (value, key) {
+            var $e = $el.find('ul li.' + key);
+
+            if (util.isString(value)) {
+                $e.text(value);
+                return;
+            }
+
+            value ? $e.css('display', 'block') : $e.css('display', 'none');
+        });
+    };
+
+    exports.playBgm = function () {
+        if (exports.bgm) bgm.load(exports.bgm);
+    };
+
+});
+webvn.use(function (ui, canvas, storage, config) {
+    "use strict";
+    var uiName = 'background',
+        exports = ui.create(uiName, 'canvas'),
+        $el = exports.$el,
+        cvs = exports.getCanvas(),
+        save = storage.create(uiName);
+
+    var cfg = config.create('uiBackground'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension');
+
+    $el.addClass('fill');
+
+    var asset = storage.createAsset(cfgPath, cfgExtension),
+        image = canvas.createImage(),
+        scene = new canvas.Scene(cvs);
 
     scene.add(image);
-    canvas.renderer.add(scene);
 
-    exports.duration = conf.get('duration');
-    exports.fadeIn = conf.get('fadeIn');
-    exports.fadeOut = conf.get('fadeOut');
-    exports.transition = conf.get('transition');
+    save.save(function () {
+        return {};
+    }).load(function (value) {
+    });
+
+    exports.properties({
+        duration: cfg.get('duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut'),
+        transition: cfg.get('transition'),
+        filter: {
+            set: function (val) {
+                image.filter = val;
+            }
+        },
+        scaleX: {
+            set: function (val) {
+                image.scaleX = val;
+            }
+        },
+        scaleY: {
+            set: function (val) {
+                image.scaleY = val;
+            }
+        },
+        scale: {
+            set: function (val) {
+                image.scaleX = image.scaleY = val;
+            }
+        }
+    });
 
     exports.load = function (src) {
         image.transition = exports.transition;
         image.load(asset.get(src), exports.duration);
     };
 
+    exports.position = function (x, y) {
+        image.setPosition(x, y);
+    };
+
+    exports.animate = function (to) {
+        image.animate(to, exports.duration);
+    };
+
     exports.show = function () {
-        if (exports.fadeIn) {
-            $el.fadeIn(exports.duration);
-        } else {
-            $el.show();
-        }
+        canvas.renderer.add(scene);
+
+        if ($el.visible()) return;
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
     };
 
     exports.hide = function () {
-        if (exports.fadeOut) {
-            $el.fadeOut(exports.duration);
+        canvas.renderer.remove(scene);
+
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
+    };
+});
+webvn.use(function (ui, text, media, config, storage, script) {
+    "use strict";
+    var uiName = 'dialog',
+        exports = ui.create(uiName, 'div'),
+        $el = exports.$el,
+        lang = ui.lang.get(uiName),
+        tpl = ui.template.get(uiName),
+        save = storage.create(uiName);
+
+    var cfg = config.create('uiDialog'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension');
+
+    $el.addClass('fill').html(tpl({
+        Q_Save: lang.get('Q-Save'),
+        Q_Load: lang.get('Q-Load'),
+        Load: lang.get('Load'),
+        Save: lang.get('Save'),
+        Config: lang.get('Config'),
+        History: lang.get('History'),
+        Title: lang.get('Title')
+    }));
+
+    var $content = $el.find('.content'),
+        $name = $el.find('.name'),
+        $face = $el.find('.face'),
+        $text = $content.find('.text');
+
+    var asset = storage.createAsset(cfgPath, cfgExtension),
+        textAnim = text.createAnim($text),
+        voice = media.audio.get('vo');
+
+    save.save(function () {
+        return {
+            visible: $el.visible(),
+            name: $name.html(),
+            text: $text.html()
+        };
+    }).load(function (val) {
+        if (val.visible) $el.show();
+        $name.html(val.name);
+        $text.html(val.text);
+    });
+
+    exports.properties({
+        textType: cfg.get('textType'),
+        textDuration: cfg.get('textDuration'),
+        duration: cfg.get('duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut')
+    }).events({
+
+        'click .save': function () {
+            ui.get('save').show('save');
+        },
+
+        'click .load': function () {
+            ui.get('save').show('load');
+        },
+
+        'click .config': function () {
+            ui.get('config').show();
+        },
+
+        'click .exit': function () {
+            ui.get('menu').show();
+        }
+
+    });
+
+    exports.show = function () {
+        if ($el.visible()) return;
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+    };
+
+    exports.face = function(src) {
+        !src ? $face.hide() : $face.show().attr('src', asset.get(src));
+    };
+
+    exports.hide = function () {
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
+    };
+
+    exports.name = function (name) {
+        $name.html('【' + name + '】');
+    };
+
+    exports.text = function (text) {
+        textAnim.stopTimer();
+        textAnim.type = exports.textType;
+        textAnim.duration = exports.textDuration;
+        textAnim.load(text);
+        script.insertCmd('dialog -sa');
+    };
+
+    exports.stopAnim = function () {
+        if (textAnim.isStop()) {
+            script.play();
         } else {
-            $el.hide();
+            textAnim.stop();
         }
     };
 
-    var save = storage.create('background');
-    save.save(function (value) {
-        // Save something here
-    }).load(function (value) {
-        // Restore something here
-    });
+    exports.voice = function (src) {
+        voice.load(src);
+    };
+
+    exports.style = function (name) {
+        name === 'big' ? $el.addClass('big') : $el.removeClass('big');
+    };
 
 });
-// UI component dialog
-
-webvn.use(['ui', 'text', 'media'],
-    function (ui, text, media) {
-
-        var exports = ui.create('dialog', 'div');
-
-        exports.textType = 'fadeIn';
-        exports.textDuration = 50;
-        exports.duration = 200;
-        exports.fadeIn = true;
-        exports.fadeOut = true;
-
-        var $el = exports.$el;
-        $el.addClass('fill');
-
-        var tpl = ui.getTemplate('dialog');
-        exports.body(tpl);
-
-        var $content = $el.find('.content'),
-            $name = $el.find('.name'),
-            $text = $content.find('.text');
-
-        exports.show = function () {
-
-            if (exports.fadeIn) {
-                $el.fadeIn(exports.duration);
-            } else {
-                $el.show();
-            }
-
-        };
-
-        exports.hide = function () {
-
-            if (exports.fadeOut) {
-                $el.fadeOut(exports.duration);
-            } else {
-                $el.hide();
-            }
-
-        };
-
-        exports.name = function (name) {
-
-            $name.html('【' + name + '】');
-
-        };
-
-        var textAnim = text.createAnim($text);
-        exports.text = function (text) {
-
-            textAnim.type = exports.textType;
-            textAnim.duration = exports.textDuration;
-            textAnim.load(text);
-
-        };
-
-        var voice = media.createAudio('voice');
-        exports.voice = function (voiceSouce) {
-
-            voice.load(voiceSouce);
-
-        };
-
-    });
-webvn.use(['ui', 'canvas', 'util', 'config', 'storage'], function (ui, canvas, util, config, storage) {
+webvn.use(function (ui, canvas, util, config, storage) {
     "use strict";
-    var exports = ui.create('figure', 'canvas');
+    var uiName = 'figure',
+        exports = ui.create(uiName, 'canvas'),
+        $el = exports.$el,
+        cvs = exports.getCanvas(),
+        save = storage.create(uiName);
 
-    var conf = config.create('uiFigure');
+    var cfg = config.create('uiFigure'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension');
 
-    var asset = storage.createAsset(conf.get('path'), conf.get('extension'));
-
-    var $el = exports.$el;
     $el.addClass('fill');
 
-    var scene = canvas.createScene(exports.getCanvas());
-    canvas.renderer.add(scene);
-
-    var figures = [],
+    var asset = storage.createAsset(cfgPath, cfgExtension),
+        scene = canvas.createScene(cvs),
+        figures = [],
         curFigure;
 
     curFigure = createFigure(0);
@@ -375,19 +799,50 @@ webvn.use(['ui', 'canvas', 'util', 'config', 'storage'], function (ui, canvas, u
             return figures[num];
         }
 
-        var figure = figures[num] = new canvas.ImageEntity();
+        var figure = figures[num] = canvas.createImage();
         scene.add(figure);
 
         return figure;
     }
 
-    exports.duration = conf.get('duration');
-    exports.fadeIn = conf.get('fadeIn');
-    exports.fadeOut = conf.get('fadeOut');
-    exports.transition = conf.get('transition');
+    save.save(function () {
+        return {};
+    }).load(function (value) {
+    });
+
+    exports.properties({
+        duration: cfg.get('duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut'),
+        transition: cfg.get('transition')
+    });
 
     exports.select = function (num) {
         curFigure = createFigure(num);
+    };
+
+    exports.scaleX = function (value) {
+        curFigure.scaleX = value;
+    };
+
+    exports.scaleY = function (value) {
+        curFigure.scaleY = value;
+    };
+
+    exports.scale = function (value) {
+        curFigure.scaleX = curFigure.scaleY = value;
+    };
+
+    exports.alpha = function (value) {
+        curFigure.alpha = value;
+    };
+
+    exports.filter = function (value) {
+        curFigure.filter = value;
+    };
+
+    exports.hideFigure = function () {
+        curFigure.fadeOut(exports.duration);
     };
 
     exports.load = function (src) {
@@ -400,6 +855,11 @@ webvn.use(['ui', 'canvas', 'util', 'config', 'storage'], function (ui, canvas, u
     };
 
     exports.show = function () {
+        canvas.renderer.add(scene);
+
+        if ($el.visible()) {
+            return;
+        }
         if (exports.fadeIn) {
             $el.fadeIn(exports.duration);
         } else {
@@ -408,144 +868,97 @@ webvn.use(['ui', 'canvas', 'util', 'config', 'storage'], function (ui, canvas, u
     };
 
     exports.hide = function () {
-        if (exports.fadeOut) {
-            $el.fadeOut(exports.duration);
-        } else {
-            $el.hide();
-        }
+        canvas.renderer.remove(scene);
+
+        exports.fadeOut ? $el.fadeOut(exports.duration) : $el.hide();
     };
 
-    var save = storage.create('figure');
-    save.save(function (value) {
-        // Save something here
-    }).load(function (value) {
-        // Restore something here
-    });
+    exports.animate = function (to) {
+        curFigure.animate(to, exports.duration);
+    };
+
+
 
 });
-webvn.use(['ui', 'media', 'script', 'config', 'storage'], function (ui, media, script, config, storage) {
+webvn.use(function (ui, media, script, config, storage) {
+    "use strict";
+    var uiName = 'video',
+        exports = ui.create('video', 'div'),
+        $el = exports.$el,
+        tpl = ui.template.get(uiName);
 
-    var conf = config.create('uiVideo');
-    var asset = storage.createAsset(conf.get('path'), conf.get('extension'));
+    var cfg = config.create('uiVideo'),
+        cfgPath = cfg.get('path'),
+        cfgExtension = cfg.get('extension');
 
-    var vid = ui.create('video', 'div'),
-        clickAction = 'stop',
-        $el = vid.$el;
-    
-    var tpl = '<video class="video fill"></video>';
+    $el.addClass('fill').html(tpl());
 
-    vid.body(tpl);
+    var asset = storage.createAsset(cfgPath, cfgExtension),
+        video = media.video.create($el.find('video').get(0));
 
+    exports.stopPropagation().properties({
+        clickAction: cfg.get('clickAction'),
+        duration: cfg.get('duration'),
+        fadeIn: cfg.get('fadeIn'),
+        fadeOut: cfg.get('fadeOut')
+    }).events({
 
-    var video = media.createVideo($el.find('.video').get(0));
-
-    /* Set action when video is clicked
-     * Type listed as below:
-     * stop: stop playing video and fade out the video
-     * pause: pause the video and play again when clicked again
-     */
-    vid.clickAction = function (action) {
-
-        clickAction = action;
-
-    };
-
-    vid.play = function () {
-
-        video.play();
-
-    };
-
-    vid.show = function () {
-
-        $el.show();
-        script.pause();
-
-    };
-
-    vid.src = function (src) {
-        video.load(asset.get(src));
-    };
-
-    vid.stop = function () {
-
-        video.stop();
-
-    };
-
-    video.event({
-        'ended': function () {
-            // When the video is ended, execute the next command
-            $el.fadeOut(300, function () {
-
-                script.resume();
-
-            });
-        }
-    });
-
-    vid.event({
-        'click .video': function () {
-
-            switch (clickAction) {
-                case 'stop': {
-                    $el.fadeOut(300, function () {
-
-                        video.stop();
-                        script.resume();
-
-                    });
+        'click video': function () {
+            switch (exports.clickAction) {
+                case 'skip':
+                    video.stop();
+                    hide();
                     break;
-                }
-                case 'pause': {
+                case 'pause':
                     if (video.isPlaying()) {
                         video.pause();
                     } else {
                         video.play();
                     }
                     break;
-                }
-                default:
-                    break;
             }
-
         }
-    });
-
-});
-// Particle ui component
-
-webvn.use(['ui', 'canvas'], function (ui, canvas) {
-
-var particle = ui.create('particle', 'canvas'),
-    $el = particle.$el;
-
-$el.addClass('fill');
-
-var emitter = new canvas.Emitter(particle.getCanvas());
-
-particle.show = function () {
-
-    canvas.renderer.add(emitter);
-    $el.fadeIn();
-
-};
-
-particle.hide = function () {
-
-    $el.fadeOut(function () {
-
-        canvas.renderer.remove(emitter);
 
     });
 
-};
 
-// Set the predefined type
-particle.type = function (name) {
+    video.events({
 
-    emitter.reConfigure(name);
+        ended: function () {
+            hide();
+        }
 
-};
+    });
+
+    exports.play = function () {
+        video.play();
+    };
+
+    exports.show = function () {
+        if ($el.visible()) return;
+
+        exports.fadeIn ? $el.fadeIn(exports.duration) : $el.show();
+
+        script.pause();
+    };
+
+    function hide () {
+        if (exports.fadeOut) {
+            $el.fadeOut(exports.duration, function () {
+                script.resume();
+            });
+        } else {
+            $el.hide();
+            script.resume();
+        }
+    }
+
+    exports.src = function (src) {
+        video.load(asset.get(src));
+    };
+
+    exports.stop = function () {
+        video.stop();
+    };
 
 });

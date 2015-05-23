@@ -1,20 +1,34 @@
-/**
- * Used for placing some regular functions.<br>
- * Most code is modified from kissy and underscore.
- * @namespace webvn.util
- */
-webvn.module('util', function () {
-    var exports = {};
+webvn.module('util', function (exports) {
+    "use strict";
+    exports.each = function (obj, fn) {
+        var keys, i = 0, len = obj.length;
 
+        if (len === +len) {
+            for (; i < len; i++) {
+                fn(obj[i], i, obj);
+            }
+        } else {
+            keys = exports.keys(obj);
+            len = keys.length;
+
+            for (; i < len; i++) {
+                fn(obj[keys[i]], keys[i], obj);
+            }
+        }
+    };
+
+    exports.uid = function (prefix) {
+        return (prefix || '') + uid++;
+    };
+    var uid = 0;
+
+    // Undone
     // Quick references
-    var ObjProto = Object.prototype,
-        ArrProto = Array.prototype,
-        toString = ObjProto.toString;
+    var ArrProto = Array.prototype;
 
     // Const
     var CLONE_MARKER = 'webvn_clone',
-        MIX_MARKER = 'webvn_mix',
-        EMPTY = '';
+        MIX_MARKER = 'webvn_mix';
 
     /**
      * Create a duplicate of an object, deep
@@ -97,29 +111,6 @@ webvn.module('util', function () {
     };
 
     /**
-     * Check if a string startsWith a specific string.
-     * @function webvn.util.endsWith
-     * @param {String} str string
-     * @param {String} suffix suffix
-     * @returns {Boolean} whether string ends with the suffix
-     */
-    exports.endsWith = function (str, suffix) {
-        var index = str.length - suffix.length;
-        return index >= 0 && str.indexOf(suffix, index) === index;
-    };
-
-    var guid = 0;
-    /**
-     * Generate global id
-     * @function webvn.util.guid
-     * @param {string} prefix guid prefix
-     * @returns {string}
-     */
-    exports.guid = function (prefix) {
-        return (prefix || EMPTY) + guid++;
-    };
-
-    /**
      * Whether an element is in the specific array
      * @function webvn.util.inArray
      * @param elem
@@ -140,59 +131,6 @@ webvn.module('util', function () {
         return ArrProto.indexOf.call(arr, elem);
     };
 
-    exports.isPlainObject = function (input) {
-        if (exports.type(input) !== 'object') {
-            return false;
-        }
-        for (var key in input) {
-        }
-        return ((key === undefined) || hasOwnProperty(input, key));
-    };
-
-    /**
-     * Get keys of an object.
-     * @function webvn.util.keys
-     * @param {object} o
-     * @returns {Array}
-     */
-    exports.keys = function (o) {
-        var result = [], p;
-        for (p in o) {
-            if (o.hasOwnProperty(p)) {
-                result.push(p);
-            }
-        }
-        return result;
-    };
-
-    /**
-     * Transform a object into an array
-     * @function webvn.util.makeArray
-     * @param {object} o
-     * @returns {Array}
-     */
-    exports.makeArray = function (o) {
-        if (o == null) {
-            return [];
-        }
-        if (exports.isArray(o)) {
-            return o;
-        }
-        var lengthType = typeof o.length,
-            oType = typeof o;
-        if (lengthType !== 'number' ||
-            o.alert ||
-            oType === 'string' ||
-            (oType === 'function' && !( 'item' in o && lengthType === 'number'))) {
-            return [o];
-        }
-        var ret = [];
-        for (var i = 0, l = o.length; i < l; i++) {
-            ret[i] = o[i];
-        }
-        return ret;
-    };
-
     /**
      * Merge multiple object into a new object <br>
      * The latter one will overwrite the former if they have the same key
@@ -201,7 +139,7 @@ webvn.module('util', function () {
      * @returns {object}
      */
     exports.merge = function () {
-        var varArgs = exports.makeArray(arguments),
+        var varArgs = exports.toArray(arguments),
             o = {};
         for (var i = 0, len = varArgs.length; i < len; i++) {
             exports.mix(o, varArgs[i]);
@@ -272,74 +210,6 @@ webvn.module('util', function () {
     }
 
     /**
-     * Check if a string startsWith a specific string
-     * @function webvn.util.startsWith
-     * @param {string} str
-     * @param {string} prefix
-     * @returns {boolean}
-     */
-    exports.startsWith = function (str, prefix) {
-        return str.indexOf(prefix) === 0;
-    };
-
-    /**
-     * Trim strings
-     * @function webvn.util.trim
-     * @param {string} str
-     * @returns {string}
-     */
-    exports.trim = function(str) {
-        return str.replace(/^\s+|\s+$/g, '');
-    };
-
-    /**
-     * Iterate an object or an array
-     * @function webvn.util.each
-     * @param {object} o
-     * @param {function} fn
-     */
-    exports.each = function(o, fn) {
-        var len = o.length, i;
-        /* Check if the object is an array or an obect
-         * And do different stuff according to the result
-         */
-        if (len === +len) {
-          for (i = 0; i < len; i++) {
-            fn(o[i], i, o);
-          }
-        } else {
-          var keys = exports.keys(o);
-          for (i = 0, len = keys.length; i < len; i++) {
-            fn(o[keys[i]], keys[i], o);
-          }
-        }
-        return o;
-    };
-
-    var class2type = {};
-    // isType methods
-    exports.each('Boolean Number String Function Date RegExp Object Array'.split(' '), function (name, lc) {
-        // populate the class2type map
-        class2type['[object ' + name + ']'] = (lc = name.toLowerCase());
-        // add isBoolean/isNumber/...
-        exports['is' + name] = function (o) {
-            return exports.type(o) === lc;
-        };
-    });
-
-    /**
-     * Determine the internal JavaScript [[Class]] of an object.
-     * @function webvn.util.type
-     * @param {object} o
-     * @returns {string}
-     */
-    exports.type = function (o) {
-        return o == null ?
-            String(o) :
-            class2type[toString.call(o)] || 'object';
-    };
-
-    /**
      * @function webvn.util.map
      * @param {object} o
      * @param {function} fn
@@ -368,26 +238,139 @@ webvn.module('util', function () {
         }
         return values;
     };
+});
+webvn.extend('util', function (exports) {
+    "use strict";
+    exports.endsWith = function (str, suffix) {
+        var index = str.length - suffix.length;
 
-    /**
-     * Retrieve the values of an object's properties
-     * @function webvn.util.values
-     * @param {object} o
-     * @returns {Array}
-     */
-    exports.values = function (o) {
-        var keys = exports.keys(o),
-            len = keys.length;
-        var values = new Array(len);
+        return index >= 0 && str.indexOf(suffix, index) === index;
+    };
+
+    exports.startsWith = function (str, prefix) {
+        return str.indexOf(prefix) === 0;
+    };
+
+    exports.trim = function (str) {
+        return str.replace(regTrim, '');
+    };
+    var regTrim = /^\s+|\s+$/g;
+});
+webvn.extend('util', function (exports) {
+    'use strict';
+
+});
+webvn.extend('util', function (exports) {
+    "use strict";
+    var type = exports.type = function (val) {
+        if (val === null) return 'null';
+        if (val === UNDEFINED) return 'undefined';
+
+        return regType.exec(toString.call(val))[1]
+                .toLowerCase();
+    };
+    var UNDEFINED,
+        regType = /^\[object (.*)]$/,
+        toString = Object.prototype.toString;
+
+    var isNumber = exports.isNumber = function (val) {
+        return type(val) === 'number';
+    };
+
+    exports.isInteger = function (val) {
+        return isNumber(val) && (val % 1 === 0);
+    };
+
+    exports.isString = function (val) {
+        return type(val) === 'string';
+    };
+
+    exports.isFunction = function (val) {
+        return type(val) === 'function';
+    };
+
+    var isObject = exports.isObject = function (val) {
+        return type(val) === 'object';
+    };
+
+    var isArray = exports.isArray = function (val) {
+        return type(val) === 'array';
+    };
+
+    exports.isPlainObject = function (val) {
+        return isObject(val) && val.constructor === Object;
+    };
+
+    exports.toArray = function (val) {
+        if (val == null) return [];
+        if (isArray(val)) return val;
+
+        var _type = type(val),
+            len = val.length, ret;
+
+        if (len == null ||
+            _type === 'string' ||
+            _type === 'function') {
+            return [val];
+        }
+
+        ret = [];
+        while(len--) ret[len] = val[len];
+
+        return ret;
+    };
+});
+webvn.extend('util', function (exports) {
+    'use strict';
+    var keys = exports.keys = (function (objKeys) {
+        if (objKeys) {
+            return function (obj) {
+                return objKeys(obj);
+            };
+        }
+
+        return function (obj) {
+            var ret = [], prop;
+
+            for (prop in obj) {
+                if (obj.hasOwnProperty(prop)) {
+                    ret.push(prop);
+                }
+            }
+
+            return ret;
+        }
+    })(Object.keys);
+
+    /*
+    exports.values = function (obj) {
+        var _keys = keys(obj),
+            len = _keys.length,
+            values = new Array(len);
+
         for (var i = 0; i < len; i++) {
             values[i] = obj[keys[i]];
         }
+
         return values;
     };
 
-    function hasOwnProperty(o, p) {
-        return ObjProto.hasOwnProperty.call(o, p);
-    }
+    exports.merge = function () {
 
-    return exports;
+    };
+
+    exports.mixIn = function () {
+
+    };
+
+    exports.clone = function (val) {
+        switch (exports.type(val)) {
+            case 'object':
+
+        }
+    };
+
+    exports.deepClone = function (val) {
+
+    };*/
 });

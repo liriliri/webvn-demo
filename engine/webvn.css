@@ -934,7 +934,7 @@ table {
 * {
   font-family: 'Microsoft YaHei',Helvetica,Arial,sans-serif; }
 
-.title {
+.ui-title {
   color: #eb6864;
   font-size: 45px;
   margin-top: 10px;
@@ -942,41 +942,84 @@ table {
   border-bottom: 1px solid #07a; }
 
 #background {
+  transform: translateZ(0);
   position: absolute;
   z-index: 500; }
 
-#cg {
+#gallery {
   position: absolute;
   z-index: 2200;
   background: #fff;
-  padding: 10px 30px; }
-  #cg .container {
+  padding: 10px 30px;
+  transform: translateZ(0); }
+  #gallery .container {
     padding: 25px 0;
     margin-right: -30px; }
-    #cg .container li {
+    #gallery .container li {
       width: 33.33333%;
       cursor: pointer;
       margin-bottom: 30px;
       float: left;
       padding-right: 30px; }
-    #cg .container:after {
+    #gallery .container:after {
       content: '';
       display: block;
       clear: both; }
-  #cg .close {
+  #gallery .pagination {
+    position: absolute;
+    bottom: 30px;
+    right: 30px; }
+  #gallery .close {
     position: absolute;
     bottom: 30px; }
-  #cg .viewer {
+  #gallery .viewer {
     position: absolute;
     left: 0;
     top: 0; }
 
+#save {
+  position: absolute;
+  z-index: 2200;
+  background: #fff;
+  padding: 10px 30px;
+  transform: translateZ(0); }
+  #save .container {
+    padding: 25px 0;
+    margin-right: -30px; }
+    #save .container li {
+      width: 33.33333%;
+      cursor: pointer;
+      margin-bottom: 30px;
+      float: left;
+      padding-right: 30px;
+      text-align: center;
+      height: 220px; }
+      #save .container li span {
+        display: block;
+        height: 100%;
+        box-shadow: 0 0 1px #e1e1e1;
+        border: solid 4px #fff;
+        padding-top: 80px;
+        transition: box-shadow .3s; }
+        #save .container li span:hover {
+          box-shadow: 0 0 6px 1px #07a; }
+    #save .container:after {
+      content: '';
+      display: block;
+      clear: both; }
+  #save .close {
+    position: absolute;
+    bottom: 30px; }
+
 #music {
   z-index: 2200;
   background: #fff;
-  padding: 10px 30px; }
+  padding: 10px 30px;
+  transform: translateZ(0); }
   #music .container {
-    padding: 25px 0; }
+    margin: 25px 0;
+    height: 450px;
+    overflow-y: auto; }
     #music .container li {
       cursor: pointer;
       padding: 15px 5px;
@@ -990,113 +1033,180 @@ table {
     #music .progress span {
       background-color: #07a;
       height: 100%;
+      transition: width .25s;
       display: inline-block; }
+  #music .controls {
+    position: absolute;
+    bottom: 30px;
+    right: 30px; }
+    #music .controls li {
+      float: left;
+      width: 100px;
+      text-align: center; }
   #music .close {
     position: absolute;
     bottom: 30px; }
 
-#setting {
+#config {
   z-index: 2200;
   position: absolute;
   background: #fff;
-  padding: 10px 30px; }
-  #setting .container {
+  padding: 10px 30px;
+  transform: translateZ(0); }
+  #config .container {
     margin-right: -50px; }
-    #setting .container li {
+    #config .container li {
       width: 50%;
       float: left;
       height: 50px;
       margin: 15px 0;
       padding-right: 50px;
       display: table; }
-      #setting .container li label {
+      #config .container li label {
         display: table-cell;
         font-size: 20px;
         width: 150px;
         vertical-align: middle; }
-      #setting .container li input {
+      #config .container li input {
         display: table-cell;
         position: relative;
         top: 2px; }
-    #setting .container:after {
+    #config .container:after {
       content: '';
       display: block;
       clear: both; }
-  #setting .close {
+  #config .close {
     position: absolute;
     bottom: 30px; }
 
 #dialog {
   z-index: 1200;
   position: absolute;
-  width: 100%;
-  height: 300px;
-  bottom: 0; }
+  padding: 25px;
+  transform: translateZ(0); }
+  #dialog .wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%; }
   #dialog .name {
     color: #fff;
     text-shadow: 0 0 3px #07a;
     position: absolute;
-    padding: 2px 25px;
-    left: 50px;
-    height: 40px;
+    bottom: 245px;
+    padding: 10px 25px;
     font-size: 25px;
-    line-height: 40px;
     background-color: rgba(0, 0, 0, 0.4);
     border-radius: 5px 5px 0 0; }
-  #dialog .content {
+  #dialog .controls {
     position: absolute;
+    bottom: 245px;
+    right: 0;
+    opacity: 0.2;
+    transition: opacity .3s; }
+    #dialog .controls:hover {
+      opacity: 1; }
+    #dialog .controls li {
+      color: #fff;
+      text-shadow: 0 0 3px #07a;
+      font-size: 15px;
+      background-color: rgba(0, 0, 0, 0.4);
+      padding: 8px 15px;
+      float: left;
+      transition: background .3s;
+      cursor: pointer; }
+      #dialog .controls li:hover {
+        background-color: rgba(0, 0, 0, 0.5); }
+      #dialog .controls li.qsave {
+        border-top-left-radius: 5px; }
+      #dialog .controls li.exit {
+        border-top-right-radius: 5px; }
+  #dialog .content {
     padding: 25px;
-    left: 50px;
-    top: 47px;
-    width: 1180px;
-    height: 230px;
     background-color: rgba(0, 0, 0, 0.4);
     border-radius: 0 5px 5px 5px;
-    overflow: hidden; }
+    height: 240px;
+    overflow: hidden;
+    position: absolute;
+    width: 100%;
+    bottom: 0; }
+    #dialog .content .face {
+      height: 100%;
+      margin-right: 20px;
+      float: left; }
     #dialog .content .text {
-      font-family: STSong;
-      text-shadow: 0px 0px 3px #eb6864;
+      text-shadow: 0 0 3px #eb6864;
+      line-height: 1.5em;
       color: #fff;
       font-size: 30px; }
+      #dialog .content .text span {
+        transform: translateZ(0); }
+  #dialog.big .name {
+    display: none; }
+  #dialog.big .controls {
+    display: none; }
+  #dialog.big .content {
+    height: 100%;
+    width: 100%;
+    border-radius: 5px; }
+    #dialog.big .content .face {
+      display: none !important; }
 
 #figure {
   position: absolute;
-  z-index: 800; }
+  z-index: 800;
+  transform: translateZ(0); }
 
 #menu {
   position: absolute;
-  z-index: 2000; }
+  z-index: 2000;
+  transform: translateZ(0); }
   #menu ul {
     position: absolute;
     height: 50%;
     width: 100%;
-    top: 50%; }
+    top: 45%; }
     #menu ul li {
       cursor: pointer;
-      font-size: 35px;
-      -webkit-text-stroke: 2px #fff;
-      padding: 10px 15px;
-      padding-bottom: 14px;
+      font-size: 25px;
+      padding: 10px 15px 14px 15px;
       text-align: center;
       font-weight: bold;
       color: #eb6864;
-      margin: 0 auto;
-      margin-bottom: 2px;
+      margin: 0 auto 15px 280px;
       transition: color .3s, background .3s, opacity .3s;
       width: 200px;
       border-radius: 5px;
-      opacity: 0.8; }
+      opacity: 0.8;
+      box-shadow: 0 0 5px #666;
+      background: #fff; }
       #menu ul li:hover {
         color: #07a;
-        background: rgba(255, 255, 255, 0.5);
         opacity: 1; }
 
 #particle {
   position: absolute;
-  z-index: 1000; }
+  z-index: 1000;
+  transform: translateZ(0); }
 
 html {
   box-sizing: border-box; }
+
+body {
+  background: #000; }
+
+.center {
+  width: 0;
+  height: 0;
+  position: fixed;
+  top: 50%;
+  left: 50%; }
+
+#webvn {
+  position: absolute;
+  left: -640px;
+  top: -360px;
+  overflow: hidden;
+  background: #fff; }
 
 *,
 *:before,

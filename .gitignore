@@ -1,5 +1,4 @@
-/doc/
-/asset/
-/node_modules/
 /.idea/
-/custom/
+/asset/
+/doc/
+/node_modules/

@@ -1,10 +1,37 @@
-// Initialization script
+/* Initialization script
+ * Alias and macro function are defined here.
+ * Creating your own alias and macro here is not recommended.
+ * Please create another script file to define your own.
+ */
 
-menu -d                            \
-    -bgm=/asset/bgm/bgm1.ogg       \
-    -du=300                        \
-    -fi=true                       \
-    -fo=true                       \
-    -bhs=/asset/sound/onmouse.wav  \
-    -bcs=/asset/sound/onclick.wav  \
-    -btn='{"start":"开始旅程","load":false}'
+function default(text) {
+    dialog -t={{text}}
+}
+
+function jump(label) {
+    script -j={{label}}
+}
+
+function logInfo(msg) {
+    log -t=info -m={{msg}}
+}
+
+function playBgm(src) {
+    bgm -s={{src}}
+}
+
+function playVideo(src) {
+    video -d -p -s={{src}} -c=skip
+}
+
+function setAlias(name, value) {
+    alias -n={{name}} -v={{value}}
+}
+
+function title(name) {
+    system -t={{name}}
+}
+
+function stopBgm() {
+    bgm -p=false
+}

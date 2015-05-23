@@ -14,10 +14,12 @@ webvn.extend('config', function (exports) {
     };
 
     exports.ui = {
-        container: 'webvn',
+        container: '#webvn',
+        defaultTpl: '<div class="center"><div id="webvn"></div></div>',
         width: 1280,
         height: 720,
-        autoResize: true
+        autoResize: true,
+        lang: 'zh'
     };
 
     exports.log = {
@@ -26,6 +28,26 @@ webvn.extend('config', function (exports) {
             error: '#eb6864',
             warn: '#f9c621'
         }
+    };
+
+    exports.media = {
+        bgm: {
+            path: 'asset/bgm/',
+            extension: 'ogg'
+        },
+        se: {
+            path: 'asset/sound/',
+            extension: 'ogg'
+        },
+        vo: {
+            path: 'asset/voice/',
+            extension: 'ogg'
+        }
+    };
+
+    exports.canvas = {
+        lumaPath: 'engine/img/luma/',
+        lumaExtension: 'png'
     };
 
 });

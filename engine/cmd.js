@@ -1,212 +1,143 @@
-webvn.use(['script', 'ui'],
-    function (script, ui) {
+webvn.use(function (script, ui) {
 
-        var menu = ui.get('menu');
-        /**
-         * Menu Command
-         * @class webvn.cmd.MenuCommand
-         * @extends webvn.script.Command
-         */
-        var Command = script.Command.extend({
-            constructor: function MenuCommand() {
-                this.callSuper('menu');
-            },
-            /**
-             * @memberof webvn.cmd.MenuCommand
-             * @property {String} bgm{bgm} background music
-             */
-            options: {
-                'bgm': {
-                    type: 'String',
-                    shortHand: 'bgm'
-                },
-                'btn': {
-                    type: 'Json',
-                    shortHand: 'btn'
-                },
-                'btnHoverSound': {
-                    type: 'String',
-                    shortHand: 'bhs'
-                },
-                'btnClickSound': {
-                    type: 'String',
-                    shortHand: 'bcs'
-                },
-                'display': {
-                    type: 'Boolean',
-                    shortHand: 'd'
-                },
-                'duration': {
-                    type: 'Number',
-                    shortHand: 'du'
-                },
-                'fadeIn': {
-                    type: 'Boolean',
-                    shortHand: 'fi'
-                },
-                'fadeOut': {
-                    type: 'Boolean',
-                    shortHand: 'fo'
-                }
-            },
-            orders: [
-                'bgm',
-                'btn',
-                'btnClickSound',
-                'btnHoverSound',
-                'duration',
-                'fadeIn',
-                'fadeOut',
-                'display'
-            ],
-            bgm: function (value) {
-                "use strict";
-                menu.bgm = value;
-            },
-            btn: function (value) {
-                "use strict";
-                menu.btn(value);
-            },
-            btnClickSound: function (value) {
-                "use strict";
-                menu.btnClickSound = value;
-            },
-            btnHoverSound: function (value) {
-                "use strict";
-                menu.btnHoverSound = value;
-            },
-            duration: function (value) {
-                "use strict";
-                menu.duration = value;
-            },
-            fadeIn: function (value) {
-                "use strict";
-                menu.fadeIn = value;
-            },
-            fadeOut: function (value) {
-                "use strict";
-                menu.fadeOut = value;
-            },
-            display: function (value) {
-                "use strict";
-                if (value) {
-                    menu.show();
-                } else {
-                    menu.hide();
-                }
-            }
-        });
-        new Command;
-    });
-webvn.use(['script', 'ui'],
-    function (script, ui) {
-        var video = ui.get('video');
-        /**
-         * Video Command
-         * @class webvn.cmd.VideoCommand
-         * @extends webvn.script.Command
-         */
-        var Command = script.Command.extend({
-            constructor: function VideoCommand() {
-                this.callSuper('video');
-            },
-            /**
-             * @memberof webvn.cmd.VideoCommand
-             * @property {boolean} display(d) display or not
-             * @property {string} click(c) stop or pause when clicked
-             * @property {boolean} play(pl) play or pause
-             * @property {string} src(s) load video and play
-             */
-            options: {
-                display: {
-                    type: 'Boolean',
-                    shortHand: 'd'
-                },
-                click: {
-                    type: 'String',
-                    shortHand: 'c'
-                },
-                play: {
-                    type: 'Boolean',
-                    shortHand: 'pl'
-                },
-                src: {
-                    type: 'String',
-                    shortHand: 's'
-                }
-            },
-            orders: [
-                'display',
-                'src',
-                'play',
-                'click'
-            ],
-            display: function (value) {
-                "use strict";
-                if (value) {
-                    video.show();
-                } else {
-                    video.hide();
-                }
-            },
-            src: function (value) {
-                "use strict";
-                video.src(value);
-            },
-            play: function (value) {
-                "use strict";
-                if (value) {
-                    video.play();
-                } else {
-                    video.stop();
-                }
-            },
-            click: function (value) {
-                "use strict";
-                video.clickAction(value);
-            }
-        });
-        new Command;
-    });
-webvn.use(['script', 'media'], function (script, media) {
-    // Background music
-    var bgm = media.getAudio('bgm');
+    var menu = ui.get('menu');
     /**
-     * Bgm Command
-     * @class webvn.cmd.BgmCommand
+     * Menu Command
+     * @class webvn.cmd.MenuCommand
      * @extends webvn.script.Command
      */
-    var BgmCommand = script.Command.extend({
-        constructor: function BgmCommand() {
-            this.callSuper('bgm');
+    var Command = script.Command.extend({
+        constructor: function MenuCommand() {
+            this.callSuper('menu');
         },
         /**
-         * @memberof webvn.cmd.BgmCommand
-         * @property {number} duration(du) duration of fadein and fadeout
-         * @property {boolean} fadeIn(fi) fade in bgm or not
-         * @property {boolean} fadeOut(fo) fade out bgm or not
-         * @property {boolean} loop(l) loop bgm or not
-         * @property {boolean} play(p) play bgm or pause bgm
-         * @property {string} src(s) load bgm and play
-         * @property {boolean} stop(st) stop bgm
-         * @property {number} volume(v) set volume of bgm
+         * @memberof webvn.cmd.MenuCommand
+         * @property {String} bgm{bgm} background music
          */
         options: {
+            'bgm': {
+                type: 'String',
+                shortHand: 'bgm'
+            },
+            'btn': {
+                type: 'Json',
+                shortHand: 'btn'
+            },
+            'btnHoverSound': {
+                type: 'String',
+                shortHand: 'bhs'
+            },
+            'btnClickSound': {
+                type: 'String',
+                shortHand: 'bcs'
+            },
+            'display': {
+                type: 'Boolean',
+                shortHand: 'd'
+            },
+            'duration': {
+                type: 'Number',
+                shortHand: 'du'
+            },
+            'fadeIn': {
+                type: 'Boolean',
+                shortHand: 'fi'
+            },
+            'fadeOut': {
+                type: 'Boolean',
+                shortHand: 'fo'
+            }
+        },
+        orders: [
+            'bgm',
+            'btn',
+            'btnClickSound',
+            'btnHoverSound',
+            'duration',
+            'fadeIn',
+            'fadeOut',
+            'display'
+        ],
+        bgm: function (value) {
+            "use strict";
+            menu.bgm = value;
+        },
+        btn: function (value) {
+            "use strict";
+            menu.buttons(value);
+        },
+        btnClickSound: function (value) {
+            "use strict";
+            menu.btnClickSound = value;
+        },
+        btnHoverSound: function (value) {
+            "use strict";
+            menu.btnHoverSound = value;
+        },
+        duration: function (value) {
+            "use strict";
+            menu.duration = value;
+        },
+        fadeIn: function (value) {
+            "use strict";
+            menu.fadeIn = value;
+        },
+        fadeOut: function (value) {
+            "use strict";
+            menu.fadeOut = value;
+        },
+        display: function (value) {
+            "use strict";
+            if (value) {
+                menu.show();
+            } else {
+                menu.hide();
+            }
+        }
+    });
+    new Command;
+});
+webvn.use(function (script, ui) {
+    var video = ui.get('video');
+
+    /**
+     * Video Command
+     * @class webvn.cmd.VideoCommand
+     * @extends webvn.script.Command
+     */
+    script.createCommand({
+
+        constructor: function VideoCommand() {
+            this.callSuper('video');
+        },
+
+        /**
+         * @memberof webvn.cmd.VideoCommand
+         * @property {boolean} display(d) display or not
+         * @property {string} click(c) stop or pause when clicked
+         * @property {boolean} play(pl) play or pause
+         * @property {string} src(s) load video and play
+         */
+        options: {
+            display: {
+                type: 'Boolean',
+                shortHand: 'd'
+            },
+            fadeIn: {
+                type: 'String',
+                shortHand: 'fi'
+            },
+            fadeOut: {
+                type: 'String',
+                shortHand: 'fo'
+            },
             duration: {
                 type: 'Number',
                 shortHand: 'du'
             },
-            fadeIn: {
-                type: 'Boolean',
-                shortHand: 'fi'
-            },
-            fadeOut: {
-                type: 'Boolean',
-                shortHand: 'fo'
-            },
-            loop: {
-                type: 'Boolean',
-                shortHand: 'l'
+            click: {
+                type: 'String',
+                shortHand: 'c'
             },
             play: {
                 type: 'Boolean',
@@ -215,16 +146,104 @@ webvn.use(['script', 'media'], function (script, media) {
             src: {
                 type: 'String',
                 shortHand: 's'
+            }
+        },
+
+        orders: [
+            'duration',
+            'fadeIn',
+            'fadeOut',
+            'display',
+            'src',
+            'play',
+            'click'
+        ],
+
+        fadeIn: function (value) {
+            video.fadeIn = value;
+        },
+
+        fadeOut: function (value) {
+            video.fadeOut = value;
+        },
+
+        display: function (value) {
+            if (value) {
+                video.show();
+            }
+        },
+
+        duration: function (value) {
+            video.duration = value;
+        },
+
+        src: function (value) {
+            video.src(value);
+        },
+
+        play: function (value) {
+            if (value) {
+                video.play();
+            } else {
+                video.stop();
+            }
+        },
+
+        click: function (value) {
+            video.clickAction = value;
+        }
+
+    });
+});
+webvn.use(function (script, media) {
+    var bgm = media.audio.get('bgm');
+
+    script.createCommand({
+
+        constructor: function BgmCommand() {
+            this.callSuper('bgm');
+        },
+
+        options: {
+            duration: {
+                type: 'number',
+                shortHand: 'du'
+            },
+            fadeIn: {
+                type: 'boolean',
+                shortHand: 'fi'
+            },
+            fadeOut: {
+                type: 'boolean',
+                shortHand: 'fo'
+            },
+            loop: {
+                type: 'boolean',
+                shortHand: 'l'
+            },
+            play: {
+                type: 'boolean',
+                shortHand: 'p'
+            },
+            src: {
+                type: 'string',
+                shortHand: 's'
             },
             stop: {
-                type: 'Boolean',
+                type: 'boolean',
                 shortHand: 'st'
             },
             volume: {
-                type: 'Number',
+                type: 'number',
                 shortHand: 'v'
+            },
+            playNext: {
+                type: 'boolean',
+                shortHand: 'pn',
+                defaultValue: true
             }
         },
+
         orders: [
             'fadeIn',
             'fadeOut',
@@ -232,56 +251,52 @@ webvn.use(['script', 'media'], function (script, media) {
             'play',
             'loop',
             'stop',
-            'src'
+            'src',
+            'playNext'
         ],
+
         fadeIn: function (value) {
-            "use strict";
             bgm.fadeIn = value;
         },
+
         fadeOut: function (value) {
-            "use strict";
             bgm.fadeOut = value;
         },
+
         duration: function (value) {
-            "use strict";
             bgm.duration = value;
         },
+
         play: function (value) {
-            "use strict";
-            if (value) {
-                bgm.play();
-            } else {
-                bgm.pause();
-            }
+            value ? bgm.play() : bgm.pause();
         },
+
         loop: function (value) {
-            "use strict";
             bgm.loop(value);
         },
+
         stop: function (value) {
-            "use strict";
-            if (value) {
-                bgm.stop();
-            }
+            value && bgm.stop();
         },
+
         src: function (value) {
-            "use strict";
             bgm.load(value);
         }
+
     });
-    new BgmCommand;
 
     /**
      * Se Command
      * @class webvn.cmd.SeCommand
      * @extends webvn.script.Command
      */
-    // Sound Effect
-    var se = media.getAudio('se');
-    var SeCommand = script.Command.extend({
+    var se = media.audio.get('se');
+    script.createCommand({
+
         constructor: function SeCommand() {
             this.callSuper('se');
         },
+
         /**
          * @memberof webvn.cmd.SeCommand
          * @property {Boolean} loop(l) loop bgm or not
@@ -297,32 +312,34 @@ webvn.use(['script', 'media'], function (script, media) {
                 shortHand: 's'
             }
         },
+
         orders: [
             'src',
             'loop'
         ],
+
         src: function (value) {
-            "use strict";
             se.load(value);
         },
+
         loop: function (value) {
-            "use strict";
             se.loop(value);
         }
-    });
-    new SeCommand;
 
-    // Voice
-    var voice = media.getAudio('voice');
+    });
+
+    var voice = media.audio.get('voice');
     /**
      * Voice Command
      * @class webvn.cmd.VoiceCommand
      * @extends webvn.script.Command
      */
-    var VoiceCommand = script.Command.extend({
+    script.createCommand({
+
         constructor: function VoiceCommand() {
             this.callSuper('voice');
         },
+
         /**
          * @memberof webvn.cmd.VoiceCommand
          * @property {Boolean} loop(l) loop bgm or not
@@ -338,24 +355,25 @@ webvn.use(['script', 'media'], function (script, media) {
                 shortHand: 's'
             }
         },
+
         orders: [
             'src',
             'loop'
         ],
+
         src: function (value) {
-            "use strict";
             voice.load(value);
         },
+
         loop: function (value) {
-            "use strict";
             voice.loop(value);
         }
+
     });
-    new VoiceCommand;
 
 });
 
-webvn.use(['script', 'ui'], function (script, ui) {
+webvn.use(function (script, ui) {
     var background = ui.get('background');
 
     /**
@@ -363,13 +381,53 @@ webvn.use(['script', 'ui'], function (script, ui) {
      * @class webvn.cmd.BgCommand
      * @extends webvn.script.Command
      */
-    var Command = script.Command.extend({
+    script.createCommand({
 
         constructor: function BgCommand() {
             this.callSuper('bg');
         },
 
         options: {
+            fadeIn: {
+                type: 'Boolean',
+                shortHand: 'fi'
+            },
+            fadeOut: {
+                type: 'Boolean',
+                shortHand: 'fo'
+            },
+            filter: {
+                type: 'Json',
+                shortHand: 'f'
+            },
+            position: {
+                type: 'String',
+                shortHand: 'pos'
+            },
+            x: {
+                type: 'Number',
+                shortHand: 'x'
+            },
+            y: {
+                type: 'Number',
+                shortHand: 'y'
+            },
+            animate: {
+                type: 'Json',
+                shortHand: 'a'
+            },
+            scaleX: {
+                type: 'Number',
+                shortHand: 'sx'
+            },
+            scaleY: {
+                type: 'Number',
+                shortHand: 'sy'
+            },
+            scale: {
+                type: 'Number',
+                shortHand: 'sc'
+            },
             display: {
                 type: 'Boolean',
                 shortHand: 'd'
@@ -385,22 +443,89 @@ webvn.use(['script', 'ui'], function (script, ui) {
             src: {
                 type: 'String',
                 shortHand: 's'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn',
+                defaultValue: true
+            },
+            waitTransition: {
+                type: 'Boolean',
+                shortHand: 'wt'
             }
         },
 
         orders: [
+            'x',
+            'y',
+            'fadeIn',
+            'fadeOut',
+            'filter',
+            'position',
             'duration',
+            'animate',
+            'scale',
+            'scaleX',
+            'scaleY',
             'transition',
             'display',
-            'src'
+            'src',
+            'waitTransition',
+            'playNext'
         ],
 
-        display: function (value) {
-            if (value) {
-                background.show();
-            } else {
-                background.hide();
+        waitTransition: function (value, values) {
+            if (values.src) {
+                if (values.playNext) {
+                    value && script.wait(background.duration);
+                } else {
+                    value && script.pause(background.duration);
+                }
             }
+        },
+
+        fadeIn: function (value) {
+            background.fadeIn = value;
+        },
+
+        fadeOut: function (value) {
+            background.fadeOut = value;
+        },
+
+        filter: function (val) {
+            background.filter = val;
+        },
+
+        position: function (value) {
+            background.position(value);
+        },
+
+        x: function (value) {
+            background.position(value);
+        },
+
+        y: function (value) {
+            background.position(null, value);
+        },
+
+        animate: function (value) {
+            background.animate(value);
+        },
+
+        scale: function (val) {
+            background.scale = val;
+        },
+
+        scaleX: function (val) {
+            background.scaleX = val;
+        },
+
+        scaleY: function (val) {
+            background.scaleY = val;
+        },
+
+        display: function (value) {
+            value ? background.show() : background.hide();
         },
 
         duration: function (value) {
@@ -417,63 +542,64 @@ webvn.use(['script', 'ui'], function (script, ui) {
 
     });
 
-    new Command;
 });
-webvn.use(['script', 'ui'],
-    function (script, ui) {
-
-        var particle = ui.get('particle');
-
-        var Command = script.Command.extend({
-            constructor: function ParticleCommand() {
-                this.callSuper('particle');
-            },
-            options: {
-                display: {
-                    type: 'Boolean',
-                    shortHand: 'd'
-                },
-                type: {
-                    type: 'String',
-                    shortHand: 't'
-                }
-            },
-            orders: [
-                'display',
-                'type'
-            ],
-            display: function (value) {
-                "use strict";
-                if (value) {
-                    particle.show();
-                } else {
-                    particle.hide();
-                }
-            },
-            type: function (value) {
-                "use strict";
-                particle.type(value);
-            }
-        });
-        new Command;
-    });
-webvn.use(['script', 'ui'], function (script, ui) {
+webvn.use(function (script, ui) {
     var figure = ui.get('figure');
 
-    var Command = script.Command.extend({
+    script.createCommand({
 
         constructor: function FigureCommand() {
             this.callSuper('fg');
         },
 
         options: {
+            filter: {
+                type: 'Json',
+                shortHand: 'f'
+            },
+            hide: {
+                type: 'Boolean',
+                shortHand: 'h'
+            },
+            scaleX: {
+                type: 'Number',
+                shortHand: 'sx'
+            },
+            scaleY: {
+                type: 'Number',
+                shortHand: 'sy'
+            },
+            scale: {
+                type: 'Number',
+                shortHand: 'sc'
+            },
+            fadeIn: {
+                type: 'Boolean',
+                shortHand: 'fi'
+            },
+            fadeOut: {
+                type: 'Boolean',
+                shortHand: 'fo'
+            },
             display: {
                 type: 'Boolean',
                 shortHand: 'd'
             },
+            alpha: {
+                type: 'Number',
+                shortHand: 'al'
+            },
+            duration: {
+                type: 'Number',
+                shortHand: 'du'
+            },
             select: {
                 type: 'Number',
                 shortHand: 'sel'
+            },
+            transition: {
+                type: 'String',
+                shortHand: 't'
             },
             src: {
                 type: 'String',
@@ -490,25 +616,90 @@ webvn.use(['script', 'ui'], function (script, ui) {
             position: {
                 type: 'String',
                 shortHand: 'pos'
+            },
+            animate: {
+                type: 'Json',
+                shortHand: 'a'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn',
+                defaultValue: true
             }
         },
 
         orders: [
-            'select',
+            'fadeIn',
+            'fadeOut',
+            'filter',
+            'duration',
+            'scaleX',
+            'scaleY',
+            'scale',
+            'alpha',
+            'hide',
             'display',
+            'select',
+            'transition',
             'src',
             'x',
             'y',
-            'position'
+            'position',
+            'animate',
+            'playNext'
         ],
 
+        hide: function (value) {
+            if (value) {
+                figure.hideFigure();
+            }
+        },
+
+        filter: function (value) {
+            figure.filter(value);
+        },
+
+        scaleX: function (value) {
+            figure.scaleX(value);
+        },
+
+        scaleY: function (value) {
+            figure.scaleY(value);
+        },
+
+        scale: function (value) {
+            figure.scale(value);
+        },
+
+        fadeIn: function (value) {
+            figure.fadeIn = value;
+        },
+
+        fadeOut: function (value) {
+            figure.fadeOut = value;
+        },
+
+        alpha: function (value) {
+            figure.alpha(value);
+        },
+
+        duration: function (value) {
+            figure.duration = value;
+        },
+
         select: function (value) {
-            "use strict";
             figure.select(value);
         },
 
+        animate: function (value) {
+            figure.animate(value);
+        },
+
+        transition: function (value) {
+            figure.transition = value;
+        },
+
         display: function (value) {
-            "use strict";
             if (value) {
                 figure.show();
             } else {
@@ -517,114 +708,297 @@ webvn.use(['script', 'ui'], function (script, ui) {
         },
 
         src: function (value) {
-            "use strict";
             figure.load(value);
         },
 
         x: function (value) {
-            "use strict";
             figure.position(value);
         },
 
         y: function (value) {
-            "use strict";
             figure.position(null, value);
         },
 
         position: function (value) {
-            "use strict";
             figure.position(value);
         }
     });
 
-    new Command;
+});
+webvn.use(function (script, log) {
+
+    var type = 'info';
+
+    script.createCommand({
+
+        constructor: function FigureCommand() {
+            this.callSuper('log');
+        },
+
+        options: {
+            type: {
+                type: 'String',
+                shortHand: 't'
+            },
+            message: {
+                type: 'String',
+                shortHand: 'm'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn',
+                defaultValue: true
+            }
+        },
+
+        orders: [
+            'type',
+            'message',
+            'playNext'
+        ],
+
+        type: function (value) {
+            type = value;
+        },
+
+        message: function (value) {
+            switch (type) {
+                case 'info':
+                    log.info(value);
+                    break;
+                case 'warn':
+                    log.warn(value);
+                    break;
+                case 'error':
+                    log.error(value);
+                    break;
+            }
+        }
+
+    });
 
 });
-webvn.use(['script', 'ui'],
-    function (script, ui) {
+webvn.use(function (script, ui) {
+    var dialog = ui.get('dialog');
 
-        var dialog = ui.get('dialog');
+    script.createCommand({
 
-        var Command = script.Command.extend({
-            constructor: function DialogCommand() {
-                this.callSuper('dialog');
+        constructor: function DialogCommand() {
+            this.callSuper('dialog');
+        },
+
+        options: {
+            display: {
+                type: 'Boolean',
+                shortHand: 'd'
             },
-            options: {
-                display: {
-                    type: 'Boolean',
-                    shortHand: 'd'
-                },
-                duration: {
-                    type: 'Number',
-                    shortHand: 'du'
-                },
-                fadeIn: {
-                    type: 'Boolean',
-                    shortHand: 'fi'
-                },
-                fadeOut: {
-                    type: 'Boolean',
-                    shortHand: 'fo'
-                },
-                name: {
-                    type: 'String',
-                    shortHand: 'n'
-                },
-                text: {
-                    type: 'String',
-                    shortHand: 't'
-                },
-                textDuration: {
-                    type: 'Number',
-                    shortHand: 'td'
-                },
-                textType: {
-                    type: 'String',
-                    shortHand: 'tt'
-                },
-                voice: {
-                    type: 'String',
-                    shortHand: 'v'
-                }
+            style: {
+                type: 'String',
+                shortHand: 's'
             },
-            orders: [
-
-            ],
-            execution: function (values) {
-                if (values.fadeIn === true) {
-                    dialog.fadeIn = true;
-                } else if (values.fadeIn === false) {
-                    dialog.fadeIn = false;
-                }
-                if (values.fadeOut === true) {
-                    dialog.fadeOut = true;
-                } else if (values.fadeOut === false) {
-                    dialog.fadeOut = false;
-                }
-                if (values.duration) {
-                    dialog.duration = values.duration;
-                }
-                if (values.textType) {
-                    dialog.textType = values.textType;
-                }
-                if (values.textDuration) {
-                    dialog.textDuration = values.textDuration;
-                }
-                if (values.display === true) {
-                    dialog.show();
-                } else if (values.display === false) {
-                    dialog.hide();
-                }
-                if (values.name) {
-                    dialog.name(values.name);
-                }
-                if (values.text) {
-                    dialog.text(values.text);
-                }
-                if (values.voice) {
-                    dialog.voice(values.voice);
-                }
+            face: {
+                type: 'String',
+                shortHand: 'f'
+            },
+            duration: {
+                type: 'Number',
+                shortHand: 'du'
+            },
+            fadeIn: {
+                type: 'Boolean',
+                shortHand: 'fi'
+            },
+            fadeOut: {
+                type: 'Boolean',
+                shortHand: 'fo'
+            },
+            name: {
+                type: 'String',
+                shortHand: 'n'
+            },
+            text: {
+                type: 'String',
+                shortHand: 't'
+            },
+            textDuration: {
+                type: 'Number',
+                shortHand: 'td'
+            },
+            textType: {
+                type: 'String',
+                shortHand: 'tt'
+            },
+            voice: {
+                type: 'String',
+                shortHand: 'v'
+            },
+            stopAnimation: {
+                type: 'boolean',
+                shortHand: 'sa'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn'
             }
-        });
-        new Command;
+        },
+
+        orders: [
+            'fadeIn',
+            'fadeOut',
+            'style',
+            'duration',
+            'textType',
+            'textDuration',
+            'face',
+            'display',
+            'name',
+            'text',
+            'voice',
+            'stopAnimation',
+            'playNext'
+        ],
+
+        stopAnimation: function (value) {
+            value && dialog.stopAnim();
+        },
+
+        face: function (value) {
+            dialog.face(value);
+        },
+
+        style: function (value) {
+            dialog.style(value);
+        },
+
+        fadeIn: function (value) {
+            dialog.fadeIn = value;
+        },
+
+        fadeOut: function (value) {
+            dialog.fadeOut = value;
+        },
+
+        duration: function (value) {
+            dialog.duration = value;
+        },
+
+        textType: function (value) {
+            dialog.textType = value;
+        },
+
+        textDuration: function (value) {
+            dialog.textDuration = value;
+        },
+
+        display: function (value) {
+            value ? dialog.show() : dialog.hide();
+        },
+
+        name: function (value) {
+            dialog.name(value);
+        },
+
+        text: function (value) {
+            dialog.text(value);
+        },
+
+        voice: function (value) {
+            dialog.voice(value);
+        }
+
     });
+});
+webvn.use(function (script, log, system) {
+
+    var alias = script.alias;
+
+    script.createCommand({
+
+        constructor: function AliasCommand() {
+            this.callSuper('alias');
+        },
+
+        options: {
+            name: {
+                type: 'String',
+                shortHand: 'n'
+            },
+            value: {
+                type: 'String',
+                shortHand: 'v'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn',
+                defaultValue: true
+            }
+        },
+
+        orders: [
+            'name',
+            'playNext'
+        ],
+
+        name: function (value, values) {
+            if (values.value) {
+                alias.create(value, values.value);
+            } else {
+                log.warn('Alias value must be set');
+            }
+        }
+
+    });
+
+    script.createCommand({
+
+        constructor: function ScriptCommand() {
+            this.callSuper('script');
+        },
+
+        options: {
+            jump: {
+                type: 'String',
+                shortHand: 'j'
+            }
+        },
+
+        orders: [
+            'jump'
+        ],
+
+        jump: function (value) {
+            script.jump(value);
+        }
+
+    });
+
+    script.createCommand({
+
+        constructor: function SystemCommand() {
+            this.callSuper('system');
+        },
+
+        options: {
+            title: {
+                type: 'String',
+                shortHand: 't'
+            },
+            playNext: {
+                type: 'Boolean',
+                shortHand: 'pn',
+                defaultValue: true
+            }
+        },
+
+        orders: [
+            'title',
+            'playNext'
+        ],
+
+        title: function (value) {
+            system.title(value);
+        }
+
+    });
+
+});
